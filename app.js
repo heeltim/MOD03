@@ -225,10 +225,13 @@ const STATUS = {
     }
 
     function setMainHeader(){
+      const selectedProject = projects.find(p=>p.id===selectedProjectId);
       const titleMap = {
         home: ['', ''],
         projects: ['Projetos', 'Visualização em cards. Clique em “Abrir” para acessar a página completa do projeto.'],
-        projectDetail: ['Projeto', 'Página única com todas as informações, histórico e módulos do projeto.'],
+        projectDetail: selectedProject
+          ? [selectedProject.name, `${selectedProject.client} • Responsável: ${selectedProject.owner} • ${STATUS[selectedProject.status]?.label || selectedProject.status}`]
+          : ['Projeto', 'Página única com todas as informações, histórico e módulos do projeto.'],
         briefings: ['Briefing', 'Modelos (tipo Typeform) • respostas • PDF editorial (placeholder).'],
         budgets: ['Orçamento', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
         methods: ['Metodologia', 'Banco de metodologias com horas estimadas (base para orçamento).'],
@@ -444,27 +447,70 @@ const STATUS = {
         return wrap;
       }
       const s = STATUS[p.status] || STATUS.PRE;
+      const visual = projectVisual(p);
       const head = document.createElement('div');
-      head.className='card';
-      head.innerHTML = `<h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.client)} • ${p.id} • ${s.label}</p>`;
+      head.className='card projectHero';
+      head.innerHTML = `
+        <div class="projectHeroTop">
+          <div class="projectIdentity">
+            <div class="projectGlyph" aria-hidden="true">${visual.glyph}</div>
+            <div>
+              <div class="projectCode">${escapeHtml(visual.code)}</div>
+              <h3>${escapeHtml(p.name)}</h3>
+            </div>
+          </div>
+          ${statusBadge(s)}
+        </div>
+        <div class="projectHeroMeta">
+          <span><b>Cliente:</b> ${escapeHtml(p.client)}</span>
+          <span><b>Responsável:</b> ${escapeHtml(p.owner)}</span>
+          <span><b>Modelo:</b> ${escapeHtml(p.briefingModel)}</span>
+          <span><b>Atualizado:</b> ${p.updatedAt}</span>
+        </div>
+      `;
 
       const summary = document.createElement('div');
       summary.className='card';
-      summary.innerHTML = `<h3>Resumo do projeto</h3><p><b>Responsável:</b> ${escapeHtml(p.owner)}<br/><b>Modelo:</b> ${escapeHtml(p.briefingModel)}<br/><b>Criado:</b> ${p.createdAt}</p>`;
-
-      const timeline = document.createElement('div');
-      timeline.className='card';
-      timeline.innerHTML = `<h3>Histórico</h3><div class="timeline">${p.statusHistory.slice().reverse().map(h=>`<div class="tlItem"><div class="ic">⏱</div><div class="meta"><div class="t">${STATUS[h.status]?.label || h.status}</div><div class="s">${h.at} • ${escapeHtml(h.by)} • ${escapeHtml(h.note||'')}</div></div></div>`).join('')}</div>`;
+      summary.innerHTML = `
+        <h3>Resumo rápido</h3>
+        <div class="projectQuickStats">
+          <div class="kpi"><div class="v">${p.statusHistory.length}</div><div class="k">Movimentos no histórico</div></div>
+          <div class="kpi"><div class="v">${p.modules.length}</div><div class="k">Módulos ativos</div></div>
+          <div class="kpi"><div class="v">${p.files.length}</div><div class="k">Arquivos gerados</div></div>
+          <div class="kpi"><div class="v">${daysSince(p.createdAt)}</div><div class="k">Dias desde criação</div></div>
+        </div>
+      `;
 
       const modules = document.createElement('div');
       modules.className='card';
-      modules.innerHTML = `<h3>Módulos</h3><div class="files">${p.modules.length ? p.modules.map(m=>`<div class="file"><div><div class="name">${escapeHtml(m.name)}</div><div class="meta">${escapeHtml(m.desc)}</div></div></div>`).join('') : '<div class="muted" style="font-size:12px;">Nenhum módulo ativo.</div>'}</div>`;
+      modules.innerHTML = `
+        <h3>Módulos do projeto</h3>
+        <div class="files">
+          ${p.modules.length ? p.modules.map(m=>`
+            <div class="file"><div><div class="name">${escapeHtml(m.name)}</div><div class="meta">${escapeHtml(m.desc)}</div></div></div>
+          `).join('') : '<div class="muted" style="font-size:12px;">Nenhum módulo ativo.</div>'}
+          <div class="file moduleHistory">
+            <div>
+              <div class="name">Histórico do projeto</div>
+              <div class="meta">Linha do tempo incluída como módulo para manter o fluxo em um único lugar.</div>
+            </div>
+          </div>
+        </div>
+        <div class="timeline">${p.statusHistory.slice().reverse().map(h=>`<div class="tlItem"><div class="ic">⏱</div><div class="meta"><div class="t">${STATUS[h.status]?.label || h.status}</div><div class="s">${h.at} • ${escapeHtml(h.by)} • ${escapeHtml(h.note||'')}</div></div></div>`).join('')}</div>
+      `;
 
       wrap.appendChild(head);
       wrap.appendChild(summary);
-      wrap.appendChild(timeline);
       wrap.appendChild(modules);
       return wrap;
+    }
+
+    function daysSince(dateString){
+      const start = new Date(dateString);
+      if(Number.isNaN(start.getTime())) return '-';
+      const now = new Date();
+      const diff = now.getTime() - start.getTime();
+      return Math.max(0, Math.floor(diff / 86400000));
     }
 
     function projectVisual(project){
