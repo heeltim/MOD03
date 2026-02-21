@@ -90,7 +90,7 @@ const STATUS = {
     }
 
     let selectedProjectId = null;
-    let currentView = 'projects';
+    let currentView = 'home';
     let filterStatus = 'all';
     let searchQuery = '';
 
@@ -101,8 +101,8 @@ const STATUS = {
     const tabs = Array.from(document.querySelectorAll('.tab'));
     const modalBackdrop = el('modalBackdrop');
 
-    renderAll();
     wire();
+    renderAll();
 
     function wire(){
       leftNavLinks.forEach(a=>{
@@ -178,17 +178,20 @@ const STATUS = {
         projects = [p, ...projects];
         closeModal(true);
         selectedProjectId = id;
-        currentView = 'projects';
+        currentView = 'projectDetail';
         leftNavLinks.forEach(x=>x.classList.remove('active'));
         leftNavLinks.find(x=>x.dataset.view==='projects')?.classList.add('active');
         renderAll();
       });
 
-      el('btnDeselect').addEventListener('click', ()=>{
-        selectedProjectId = null;
-        renderDetail();
-        highlightSelectedRow();
-      });
+      const deselectBtn = el('btnDeselect');
+      if(deselectBtn){
+        deselectBtn.addEventListener('click', ()=>{
+          selectedProjectId = null;
+          renderDetail();
+          highlightSelectedRow();
+        });
+      }
 
       tabs.forEach(t=>{
         t.addEventListener('click', ()=>{
@@ -217,23 +220,29 @@ const STATUS = {
 
     function renderAll(){
       renderCounts();
-      renderKpis();
-      renderMain();
-      renderDetail();
       setMainHeader();
+      renderMain();
     }
 
     function setMainHeader(){
       const titleMap = {
-        projects: ['Projetos', 'Home administrativa: pipeline completo (pré-projeto → briefing → orçamento → aprovado → projeto ativo).'],
-        briefings: ['Briefings', 'Modelos (tipo Typeform) • respostas • PDF editorial (placeholder).'],
-        budgets: ['Orçamentos', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
-        methods: ['Metodologias', 'Banco de metodologias com horas estimadas (base para orçamento).'],
+        home: ['', ''],
+        projects: ['Projetos', 'Visualização em cards. Clique em “Abrir” para acessar a página completa do projeto.'],
+        projectDetail: ['Projeto', 'Página única com todas as informações, histórico e módulos do projeto.'],
+        briefings: ['Briefing', 'Modelos (tipo Typeform) • respostas • PDF editorial (placeholder).'],
+        budgets: ['Orçamento', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
+        methods: ['Metodologia', 'Banco de metodologias com horas estimadas (base para orçamento).'],
         clientPortal: ['Portal do cliente', 'Visão do cliente: briefing, status, mensagens e downloads (stub).'],
       };
-      const [t,s] = titleMap[currentView] || titleMap.projects;
+      const [t,s] = titleMap[currentView] || titleMap.home;
       el('mainTitle').textContent = t;
       el('mainSubtitle').textContent = s;
+
+      const searchWrap = el('searchWrap');
+      const filters = el('projectFilters');
+      const showProjectTools = currentView === 'projects';
+      if(searchWrap) searchWrap.style.display = showProjectTools ? 'flex' : 'none';
+      if(filters) filters.style.display = showProjectTools ? 'flex' : 'none';
     }
 
     function renderCounts(){
@@ -252,29 +261,29 @@ const STATUS = {
       const brief = (counts.BRIEF_SENT||0) + (counts.BRIEF_DONE||0);
       const budget = (counts.BUDGET_SENT||0);
 
-      const grid = el('kpiGrid');
-      grid.innerHTML = '';
-      const items = [
+      return [
         { v: counts.total, k:'Total de projetos' },
         { v: active, k:'Projetos ativos' },
         { v: pre, k:'Pré-projetos' },
         { v: brief, k:'Em briefing' },
+        { v: budget, k:'Em orçamento' },
       ];
-
-      items.forEach(it=>{
-        const d = document.createElement('div');
-        d.className = 'kpi';
-        d.innerHTML = `<div class="v">${it.v}</div><div class="k">${it.k}</div>`;
-        grid.appendChild(d);
-      });
     }
 
     function renderMain(){
       const body = el('mainBody');
       body.innerHTML = '';
 
+      if(currentView === 'home'){
+        body.appendChild(renderHomeView());
+        return;
+      }
       if(currentView === 'projects'){
         body.appendChild(renderProjectsTable());
+        return;
+      }
+      if(currentView === 'projectDetail'){
+        body.appendChild(renderProjectDetailView());
         return;
       }
       if(currentView === 'briefings'){
@@ -344,8 +353,10 @@ const STATUS = {
             return;
           }
           selectedProjectId = p.id;
-          renderDetail();
-          highlightSelectedRow();
+          currentView = 'projectDetail';
+          leftNavLinks.forEach(x=>x.classList.remove('active'));
+          leftNavLinks.find(x=>x.dataset.view==='projects')?.classList.add('active');
+          renderAll();
         });
 
         cards.appendChild(card);
@@ -363,7 +374,96 @@ const STATUS = {
         wrap.appendChild(empty);
       }
 
-      highlightSelectedRow();
+      return wrap;
+    }
+
+
+    function renderHomeView(){
+      const wrap = document.createElement('div');
+      const shortcuts = [
+        ['projects','Projetos','Organize sua carteira e abra cada projeto para ver todos os detalhes.'],
+        ['briefings','Briefings','Acompanhe formulários, respostas e materiais enviados pelo cliente.'],
+        ['budgets','Orçamentos','Monte propostas com mais agilidade e exporte para apresentação.'],
+        ['methods','Metodologias','Consulte métodos prontos e horas estimadas para cada entrega.'],
+        ['clientPortal','Portal do cliente','Veja a experiência que o cliente terá no acompanhamento do trabalho.'],
+      ];
+
+      const now = new Date();
+      const weekday = now.toLocaleDateString('pt-BR', { weekday:'long' });
+      const date = now.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+      const kpis = renderKpis();
+
+      const welcome = document.createElement('div');
+      welcome.className='card';
+      welcome.innerHTML = `
+        <h3>Bem-vindo(a) 👋</h3>
+        <p>Hoje é ${weekday}, ${date}. Que bom ter você por aqui — selecione um atalho para começar.</p>
+      `;
+
+      const kpiCard = document.createElement('div');
+      kpiCard.className = 'card';
+      kpiCard.innerHTML = '<h3>Indicadores da operação</h3><p>Visão rápida para apoiar sua tomada de decisão no dia.</p>';
+      const kpiGrid = document.createElement('div');
+      kpiGrid.className = 'kpiGrid';
+      kpis.forEach(it=>{
+        const d = document.createElement('div');
+        d.className = 'kpi';
+        d.innerHTML = `<div class="v">${it.v}</div><div class="k">${it.k}</div>`;
+        kpiGrid.appendChild(d);
+      });
+      kpiCard.appendChild(kpiGrid);
+
+      const grid = document.createElement('div');
+      grid.className='homeShortcutGrid';
+      shortcuts.forEach(([view,title,desc])=>{
+        const c = document.createElement('article');
+        c.className='homeShortcutCard';
+        c.innerHTML = `<h3>${title}</h3><p>${desc}</p><button class="btn small">Ir para ${title}</button>`;
+        c.querySelector('button').addEventListener('click', ()=>{
+          currentView = view;
+          leftNavLinks.forEach(x=>x.classList.toggle('active', x.dataset.view===view));
+          renderAll();
+        });
+        grid.appendChild(c);
+      });
+
+      wrap.appendChild(welcome);
+      wrap.appendChild(kpiCard);
+      wrap.appendChild(grid);
+      return wrap;
+    }
+
+    function renderProjectDetailView(){
+      const wrap = document.createElement('div');
+      const p = projects.find(x=>x.id===selectedProjectId);
+      if(!p){
+        const c = document.createElement('div');
+        c.className='card';
+        c.innerHTML = '<h3>Nenhum projeto selecionado</h3><p>Volte para Projetos e clique em “Abrir” para visualizar os detalhes.</p>';
+        wrap.appendChild(c);
+        return wrap;
+      }
+      const s = STATUS[p.status] || STATUS.PRE;
+      const head = document.createElement('div');
+      head.className='card';
+      head.innerHTML = `<h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.client)} • ${p.id} • ${s.label}</p>`;
+
+      const summary = document.createElement('div');
+      summary.className='card';
+      summary.innerHTML = `<h3>Resumo do projeto</h3><p><b>Responsável:</b> ${escapeHtml(p.owner)}<br/><b>Modelo:</b> ${escapeHtml(p.briefingModel)}<br/><b>Criado:</b> ${p.createdAt}</p>`;
+
+      const timeline = document.createElement('div');
+      timeline.className='card';
+      timeline.innerHTML = `<h3>Histórico</h3><div class="timeline">${p.statusHistory.slice().reverse().map(h=>`<div class="tlItem"><div class="ic">⏱</div><div class="meta"><div class="t">${STATUS[h.status]?.label || h.status}</div><div class="s">${h.at} • ${escapeHtml(h.by)} • ${escapeHtml(h.note||'')}</div></div></div>`).join('')}</div>`;
+
+      const modules = document.createElement('div');
+      modules.className='card';
+      modules.innerHTML = `<h3>Módulos</h3><div class="files">${p.modules.length ? p.modules.map(m=>`<div class="file"><div><div class="name">${escapeHtml(m.name)}</div><div class="meta">${escapeHtml(m.desc)}</div></div></div>`).join('') : '<div class="muted" style="font-size:12px;">Nenhum módulo ativo.</div>'}</div>`;
+
+      wrap.appendChild(head);
+      wrap.appendChild(summary);
+      wrap.appendChild(timeline);
+      wrap.appendChild(modules);
       return wrap;
     }
 
@@ -516,7 +616,7 @@ const STATUS = {
         <h3>Portal do cliente (stub)</h3>
         <p>Área logada para acompanhar briefing, status, mensagens e baixar arquivos do projeto.</p>
         <div class="helper" style="margin-top:10px">
-          Neste MVP, use a aba “Cliente” no painel da direita ao selecionar um projeto.
+          Neste MVP, o detalhamento completo do projeto fica em uma página dedicada dentro da visão de Projetos.
         </div>
       `;
       wrap.appendChild(c);
@@ -532,229 +632,7 @@ const STATUS = {
       return wrap;
     }
 
-    function renderDetail(){
-      const body = el('detailBody');
-      const p = projects.find(x=>x.id===selectedProjectId);
-
-      if(!p){
-        el('detailTitle').textContent = 'Selecione um projeto';
-        el('detailSub').textContent = 'Detalhes, ações rápidas e visão cliente';
-        body.innerHTML = `
-          <div class="card">
-            <h3>Nada selecionado</h3>
-            <p>Selecione um projeto na Home para ver detalhes e ações.</p>
-          </div>
-          <div class="card">
-            <h3>Atalho</h3>
-            <p>Clique em “Novo pré-projeto” para começar.</p>
-          </div>
-        `;
-        return;
-      }
-
-      const activeTab = document.querySelector('.tab.active')?.dataset.tab || 'overview';
-
-      el('detailTitle').textContent = p.name;
-      el('detailSub').textContent = `${p.client} • ${p.id}`;
-
-      if(activeTab === 'overview'){
-        body.innerHTML = '';
-        const s = STATUS[p.status] || STATUS.PRE;
-
-        const summary = document.createElement('div');
-        summary.className='card';
-        summary.innerHTML = `
-          <h3>Resumo</h3>
-          <p><b>Status:</b> ${s.label} • <b>Responsável:</b> ${escapeHtml(p.owner)}<br/>
-          <b>Modelo de briefing:</b> ${escapeHtml(p.briefingModel)} • <b>Criado:</b> ${p.createdAt}</p>
-        `;
-
-        const actions = document.createElement('div');
-        actions.className='card';
-        actions.innerHTML = `
-          <h3>Ações rápidas (mock)</h3>
-          <p>Simule o fluxo do projeto. As ações criam histórico, mensagens e arquivos placeholders.</p>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn small" id="actAdvance">Avançar status</button>
-            <button class="btn small" id="actAddClientMsg">Mensagem ao cliente</button>
-            <button class="btn small" id="actAddFile">Adicionar arquivo</button>
-            <button class="btn small danger" id="actArchive">Arquivar</button>
-          </div>
-        `;
-
-        const briefing = document.createElement('div');
-        briefing.className='card';
-        briefing.innerHTML = `
-          <h3>Briefing</h3>
-          <p>${p.briefing?.respondedAt ?
-            `Respondido em <b>${p.briefing.respondedAt}</b><br/>Resumo: ${escapeHtml(p.briefing.summary || '—')}` :
-            'Ainda não respondido pelo cliente. Gere o link e aguarde resposta.'}
-          </p>
-          <div class="files">
-            ${p.files.filter(f=>f.type==='briefing_pdf').map(f=>fileRow(f)).join('') || `<div class="muted" style="font-size:12px;">Sem PDF de briefing ainda.</div>`}
-          </div>
-        `;
-
-        const budget = document.createElement('div');
-        budget.className='card';
-        const budgetText = p.budget ? budgetSummary(p) : 'Ainda não existe orçamento.';
-        budget.innerHTML = `
-          <h3>Orçamento</h3>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn small" id="btnBudgetTemplateFromProject">Modelo GRUTA (2024)</button>
-            <button class="btn small" id="btnBudgetPrintFromProject">Exportar (Print/PDF)</button>
-          </div>
-          <p>${budgetText}</p>
-          <div class="files">
-            ${p.files.filter(f=>f.type==='budget_pdf').map(f=>fileRow(f)).join('') || `<div class="muted" style="font-size:12px;">Sem PDF de orçamento ainda.</div>`}
-          </div>
-        `;
-
-        const modules = document.createElement('div');
-        modules.className='card';
-        modules.innerHTML = `
-          <h3>Módulos do projeto</h3>
-          <p>Estrutura prevista para crescer (ex: Mood Art, Identidade, Entregas, Decisões).</p>
-          <div class="files">
-            ${p.modules.length ? p.modules.map(m=>`
-              <div class="file">
-                <div style="min-width:0">
-                  <div class="name">${escapeHtml(m.name)}</div>
-                  <div class="meta">${escapeHtml(m.desc)}</div>
-                </div>
-                <button class="btn small">Abrir</button>
-              </div>
-            `).join('') : `<div class="muted" style="font-size:12px;">Nenhum módulo ainda (criado quando vira Projeto Ativo).</div>`}
-          </div>
-        `;
-
-        body.appendChild(summary);
-        body.appendChild(actions);
-        body.appendChild(briefing);
-        body.appendChild(budget);
-        body.appendChild(modules);
-
-        setTimeout(()=>{
-          el('actAdvance')?.addEventListener('click', ()=> advanceFlow(p.id));
-          el('actArchive')?.addEventListener('click', ()=> setStatus(p.id, 'ARCHIVED', 'Projeto arquivado (mock).'));
-          el('actAddClientMsg')?.addEventListener('click', ()=>{
-            const text = prompt('Mensagem visível ao cliente (mock):', 'Olá! Atualização rápida sobre o projeto…');
-            if(!text) return;
-            addMessage(p.id, { visibility:'client', text, by: p.owner });
-          });
-          el('actAddFile')?.addEventListener('click', ()=>{
-            const name = prompt('Nome do arquivo (mock):', 'Entrega — Arquivo.zip (placeholder)');
-            if(!name) return;
-            addFile(p.id, { name, type:'deliverable', at: today() });
-          });
-        }, 0);
-
-        return;
-      }
-
-      if(activeTab === 'timeline'){
-        body.innerHTML = '';
-        const c = document.createElement('div');
-        c.className = 'card';
-        c.innerHTML = `
-          <h3>Histórico de status</h3>
-          <p>Rastreio interno para auditoria e clareza do pipeline.</p>
-          <div class="timeline">
-            ${p.statusHistory.slice().reverse().map(h=>`
-              <div class="tlItem">
-                <div class="ic">⏺</div>
-                <div class="meta">
-                  <div class="t">${STATUS[h.status]?.label || h.status}</div>
-                  <div class="s">${h.at} • ${escapeHtml(h.by)}${h.note ? ' • ' + escapeHtml(h.note) : ''}</div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        `;
-        body.appendChild(c);
-        return;
-      }
-
-      if(activeTab === 'client'){
-        body.innerHTML = '';
-
-        const c = document.createElement('div');
-        c.className='card';
-        c.innerHTML = `
-          <h3>Portal do cliente</h3>
-          <p>Visão do cliente para este projeto.</p>
-          <div class="files" style="margin-top:10px">
-            <div class="file">
-              <div style="min-width:0">
-                <div class="name">Status atual</div>
-                <div class="meta">${STATUS[p.status]?.label || p.status}</div>
-              </div>
-              ${statusBadge(STATUS[p.status] || STATUS.PRE)}
-            </div>
-            <div class="file">
-              <div style="min-width:0">
-                <div class="name">Briefing respondido</div>
-                <div class="meta">${p.briefing?.respondedAt ? p.briefing.respondedAt : '—'}</div>
-              </div>
-              <button class="btn small">Ver</button>
-            </div>
-            <div class="file">
-              <div style="min-width:0">
-                <div class="name">Downloads</div>
-                <div class="meta">${p.files.length} arquivo(s)</div>
-              </div>
-              <button class="btn small">Abrir</button>
-            </div>
-          </div>
-        `;
-
-        const msgs = document.createElement('div');
-        msgs.className='card';
-        const clientMsgs = p.messages.filter(m=>m.visibility==='client');
-        msgs.innerHTML = `
-          <h3>Mensagens</h3>
-          <p>Atualizações visíveis para o cliente.</p>
-          <div class="timeline">
-            ${clientMsgs.length ? clientMsgs.slice().reverse().map(m=>`
-              <div class="tlItem">
-                <div class="ic">💬</div>
-                <div class="meta">
-                  <div class="t">${escapeHtml(m.text)}</div>
-                  <div class="s">${m.at} • ${escapeHtml(m.by)}</div>
-                </div>
-              </div>
-            `).join('') : `<div class="muted" style="font-size:12px;">Sem mensagens ainda.</div>`}
-          </div>
-          <div style="margin-top:10px; display:flex; gap:8px;">
-            <button class="btn small" id="clientMsgBtn">Nova mensagem</button>
-          </div>
-        `;
-
-        const dls = document.createElement('div');
-        dls.className='card';
-        dls.innerHTML = `
-          <h3>Arquivos disponíveis</h3>
-          <p>Downloads organizados.</p>
-          <div class="files">
-            ${p.files.length ? p.files.slice().reverse().map(f=>fileRow(f)).join('') : `<div class="muted" style="font-size:12px;">Sem arquivos.</div>`}
-          </div>
-        `;
-
-        body.appendChild(c);
-        body.appendChild(msgs);
-        body.appendChild(dls);
-
-        setTimeout(()=>{
-          el('clientMsgBtn')?.addEventListener('click', ()=>{
-            const text = prompt('Mensagem ao cliente (mock):', 'Olá! Seguimos para a próxima etapa…');
-            if(!text) return;
-            addMessage(p.id, { visibility:'client', text, by: p.owner });
-          });
-        }, 0);
-
-        return;
-      }
-    }
+    function renderDetail(){}
 
     function highlightSelectedRow(){
       const rows = Array.from(document.querySelectorAll('.project-item'));
@@ -828,8 +706,8 @@ const STATUS = {
       p.status = status;
       p.updatedAt = today();
       p.statusHistory.push({ at: today(), by: p.owner, status, note });
-      renderAll();
       selectedProjectId = projectId;
+      renderAll();
       renderDetail();
       highlightSelectedRow();
     }
