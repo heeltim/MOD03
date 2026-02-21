@@ -229,10 +229,13 @@ const STATUS = {
     }
 
     function setMainHeader(){
+      const selectedProject = projects.find(p=>p.id===selectedProjectId);
       const titleMap = {
         home: ['', ''],
         projects: ['Projetos', 'Visualização em cards. Clique em “Abrir” para acessar a página completa do projeto.'],
-        projectDetail: ['Projeto', 'Página única com todas as informações, histórico e módulos do projeto.'],
+        projectDetail: selectedProject
+          ? [selectedProject.name, `${selectedProject.client} • Responsável: ${selectedProject.owner} • ${STATUS[selectedProject.status]?.label || selectedProject.status}`]
+          : ['Projeto', 'Página única com todas as informações, histórico e módulos do projeto.'],
         briefings: ['Briefing', 'Modelos (tipo Typeform) • respostas • PDF editorial (placeholder).'],
         budgets: ['Orçamento', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
         methods: ['Metodologia', 'Banco de metodologias com horas estimadas (base para orçamento).'],
