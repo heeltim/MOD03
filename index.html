@@ -21,7 +21,7 @@
           <div class="logo" aria-hidden="true"></div>
           <div class="brandText">
             <div class="t">Gruta Núcleo Studio — MVP</div>
-            <div class="s">Briefing • Orçamento • Metodologias</div>
+            <div class="s">Briefing • Orçamento • Metodologia</div>
           </div>
         </div>
         <span class="pill" title="Modo MVP estático (HTML único)">
@@ -31,52 +31,36 @@
 
       <div class="panelBody">
         <button class="btn primary" id="btnNewProject" style="width:100%">
-          + Novo pré-projeto
+          + Novo projeto
         </button>
 
-        <div class="sectionTitle" style="margin-top:16px;">
-          Visões
-          <small class="muted">Equipe</small>
-        </div>
-
         <nav class="nav" aria-label="Navegação">
-          <a href="#" class="active" data-view="projects">
+          <a href="#" class="active" data-view="home">
+            Início
+            <small>boas-vindas</small>
+          </a>
+          <a href="#" data-view="projects">
             Projetos
             <small id="navCount"></small>
           </a>
           <a href="#" data-view="briefings">
-            Briefings
+            Briefing
             <small>modelos • respostas</small>
           </a>
           <a href="#" data-view="budgets">
-            Orçamentos
+            Orçamento
             <small>simular • PDF</small>
           </a>
           <a href="#" data-view="methods">
-            Metodologias
+            Metodologia
             <small>banco de horas</small>
           </a>
-          <a href="#" data-view="clientPortal">
-            Portal do cliente
-            <small>área logada</small>
+          <a href="#" data-view="clients">
+            Clientes
+            <small>administrar • gerenciar</small>
           </a>
         </nav>
 
-        <div class="sectionTitle">
-          Indicadores (mock)
-          <small class="muted">Dashboard</small>
-        </div>
-
-        <div class="kpiGrid" id="kpiGrid"></div>
-
-        <div class="sectionTitle">
-          Regras (essência)
-          <small class="muted">interno</small>
-        </div>
-        <div class="card" style="margin-bottom:0">
-          <h3>Porte não é perguntado ao cliente</h3>
-          <p>Pequeno / Médio / Grande é definido pela equipe no Orçamento e influencia o valor final via multiplicador/tabela interna.</p>
-        </div>
       </div>
     </aside>
 
@@ -85,17 +69,17 @@
       <div class="topbar">
         <div class="left">
           <div style="min-width:0">
-            <h1 id="mainTitle">Projetos</h1>
-            <div class="sub" id="mainSubtitle">Home administrativa: pipeline completo (pré-projeto → briefing → orçamento → aprovado → projeto ativo).</div>
+            <h1 id="mainTitle">Início</h1>
+            <div class="sub" id="mainSubtitle">Tela de boas-vindas com atalhos, indicadores e visão geral da operação.</div>
           </div>
         </div>
 
-        <div class="searchWrap">
+        <div class="searchWrap" id="searchWrap">
           <input class="input" id="search" placeholder="Buscar por nome, cliente, ID…" />
           <button class="btn small" id="btnReset">Limpar</button>
         </div>
 
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div style="display:flex; gap:8px; align-items:center;" id="projectFilters">
           <span class="chip active" data-filter="all">Todos</span>
           <span class="chip" data-filter="pre">Pré-projeto</span>
           <span class="chip" data-filter="brief">Briefing</span>
@@ -107,48 +91,18 @@
       <div class="panelBody" id="mainBody"></div>
     </main>
 
-    <!-- RIGHT: Details / Actions -->
-    <aside class="panel right" id="rightPanel">
-      <div class="panelHeader">
-        <div class="brand">
-          <div class="logo" aria-hidden="true" style="width:28px;height:28px;border-radius:11px;"></div>
-          <div class="brandText">
-            <div class="t" id="detailTitle">Selecione um projeto</div>
-            <div class="s" id="detailSub">Detalhes, ações rápidas e visão cliente</div>
-          </div>
-        </div>
-        <button class="btn small ghost" id="btnDeselect" title="Fechar seleção">✕</button>
-      </div>
-
-      <div class="tabs" role="tablist" aria-label="Detalhes">
-        <div class="tab active" data-tab="overview" role="tab" aria-selected="true">Resumo</div>
-        <div class="tab" data-tab="timeline" role="tab" aria-selected="false">Status</div>
-        <div class="tab" data-tab="client" role="tab" aria-selected="false">Cliente</div>
-      </div>
-
-      <div class="panelBody" id="detailBody">
-        <div class="card">
-          <h3>Como usar este MVP</h3>
-          <p>Crie um pré-projeto, selecione um item na lista e use as ações para simular o fluxo (enviar briefing, receber resposta, enviar orçamento, aprovar).</p>
-        </div>
-        <div class="card">
-          <h3>O que está modelado</h3>
-          <p>Pipeline, PDFs (placeholder), banco de metodologias (mock), importação de dados do briefing para orçamento (mock) e portal do cliente (stub).</p>
-        </div>
-      </div>
-    </aside>
   </div>
 
   <!-- MODAL: New pre-project -->
   <div class="modalBackdrop" id="modalBackdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modalHead">
-        <div class="title" id="modalTitle">Novo pré-projeto</div>
+        <div class="title" id="modalTitle">Novo projeto</div>
         <button class="btn small ghost" id="btnCloseModal">✕</button>
       </div>
       <div class="modalBody">
         <div>
-          <div class="label">Nome provisório do projeto</div>
+          <div class="label">Nome do projeto</div>
           <input class="input" id="npName" placeholder="Ex: Identidade Visual — Empresa X" />
 
           <div class="row">
@@ -185,14 +139,14 @@
           <textarea class="textarea" id="npNotes" placeholder="Notas rápidas para a equipe (não visível ao cliente)."></textarea>
 
           <div class="helper">
-            Ao criar, o pré-projeto aparece na Home. Depois você pode “gerar link do briefing” para compartilhar com o cliente.
+            Ao criar, o projeto aparece em Projetos. Depois você pode avançar etapas, gerar briefing e acompanhar entregas.
           </div>
         </div>
 
         <div>
           <div class="card">
-            <h3>Fluxo do pré-projeto</h3>
-            <p><span class="mono">Pré-projeto</span> é o “container inicial” — cria o briefing, recebe respostas, elabora orçamento e só vira Projeto Ativo após aprovação.</p>
+            <h3>Fluxo do projeto</h3>
+            <p>O projeto nasce no cadastro inicial, passa por briefing e orçamento, e evolui para etapa ativa conforme aprovação.</p>
           </div>
 
           <div class="card">
@@ -208,7 +162,7 @@
       </div>
       <div class="modalFoot">
         <button class="btn" id="btnCancelModal">Cancelar</button>
-        <button class="btn primary" id="btnCreateProject">Criar pré-projeto</button>
+        <button class="btn primary" id="btnCreateProject">Criar projeto</button>
       </div>
     </div>
   </div>
