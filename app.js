@@ -139,6 +139,7 @@ const STATUS = {
       { id:'RES-03', templateId:'BRF-03', project:'Identidade Visual — Instituto Araripe', client:'Instituto Araripe', respondedAt:'2026-02-10', status:'Em análise', summary:'Escopo de identidade em expansão para materiais institucionais.' },
     ];
     let selectedBriefingTemplateId = briefingTemplates[0].id;
+    let briefingBuilderContext = null;
 
     const el = (id)=>document.getElementById(id);
 
@@ -191,7 +192,18 @@ const STATUS = {
         if(e.target === modalBackdrop) closeModal();
       });
       window.addEventListener('keydown', (e)=>{
-        if(e.key === 'Escape') closeModal();
+        if(e.key !== 'Escape') return;
+        if(el('briefingOverlayBackdrop')?.classList.contains('open')){
+          closeBriefingOverlay();
+          return;
+        }
+        closeModal();
+      });
+
+      el('btnCloseBriefingOverlay')?.addEventListener('click', closeBriefingOverlay);
+      el('btnSaveBriefingOverlay')?.addEventListener('click', ()=>addToast('Formulário salvo com sucesso. Link compartilhável atualizado.'));
+      el('briefingOverlayBackdrop')?.addEventListener('click', (e)=>{
+        if(e.target === el('briefingOverlayBackdrop')) closeBriefingOverlay();
       });
 
       el('btnCreateProject').addEventListener('click', ()=>{
@@ -283,7 +295,8 @@ const STATUS = {
         projectDetail: selectedProject
           ? [selectedProject.name, `${selectedProject.client} • Responsável: ${selectedProject.owner} • ${STATUS[selectedProject.status]?.label || selectedProject.status}`]
           : ['Projeto', 'Página única com todas as informações, histórico e módulos do projeto.'],
-        briefings: ['Briefing', 'Modelos (tipo Typeform) • respostas • PDF editorial (placeholder).'],
+        briefings: ['Briefing', 'Painel focado nas respostas recebidas e acesso aos modelos por botão.'],
+        briefingSetup: ['Configurar briefing', 'Escolha como iniciar e abra o builder em sobreposição para editar em tempo real.'],
         budgets: ['Orçamento', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
         methods: ['Metodologia', 'Banco de metodologias com horas estimadas (base para orçamento).'],
         clientPortal: ['Clientes', 'Administrar e gerenciar contas de clientes com acesso à plataforma.'],
@@ -342,6 +355,10 @@ const STATUS = {
       }
       if(currentView === 'briefings'){
         body.appendChild(renderBriefingsView());
+        return;
+      }
+      if(currentView === 'briefingSetup'){
+        body.appendChild(renderBriefingSetupView());
         return;
       }
       if(currentView === 'budgets'){
@@ -576,45 +593,16 @@ const STATUS = {
     function renderBriefingsView(){
       const wrap = document.createElement('div');
 
-      const selectedTemplate = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId) || briefingTemplates[0];
-      if(selectedTemplate) selectedBriefingTemplateId = selectedTemplate.id;
-
-      const modelCard = document.createElement('div');
-      modelCard.className = 'card';
-      modelCard.innerHTML = `
-        <div class="briefingSectionHead">
-          <div>
-            <h3>Modelos de Briefing</h3>
-            <p>Visual em cards com ações rápidas para criar, editar, duplicar e renomear os modelos.</p>
-          </div>
-          <button class="btn small primary" data-action="new-template">+ Novo briefing</button>
-        </div>
-        <div class="briefingGrid" style="margin-top:12px">
-          ${briefingTemplates.map(template=>`
-            <article class="briefingCard ${template.id===selectedBriefingTemplateId ? 'selected' : ''}">
-              <div class="briefingCardTop">
-                <div>
-                  <h4>${escapeHtml(template.name)}</h4>
-                  <div class="meta">${template.questions.length} perguntas • atualizado em ${formatDatePtBR(template.updatedAt)}</div>
-                </div>
-                <span class="pill">${escapeHtml(template.channel)}</span>
-              </div>
-              <div class="briefingCardActions">
-                <button class="btn small" data-action="open-template" data-id="${template.id}">Abrir</button>
-                <button class="btn small" data-action="edit-template" data-id="${template.id}">Editar</button>
-                <button class="btn small" data-action="duplicate-template" data-id="${template.id}">Duplicar</button>
-                <button class="btn small" data-action="rename-template" data-id="${template.id}">Renomear</button>
-              </div>
-            </article>
-          `).join('')}
-        </div>
-      `;
-
       const responsesCard = document.createElement('div');
       responsesCard.className = 'card';
       responsesCard.innerHTML = `
-        <h3>Respostas de Briefing</h3>
-        <p>As respostas ficam separadas dos modelos e com visual próprio para facilitar leitura e triagem.</p>
+        <div class="briefingSectionHead">
+          <div>
+            <h3>Respostas de Briefing</h3>
+            <p>Neste painel ficam visíveis apenas os projetos respondidos e as respostas recebidas.</p>
+          </div>
+          <button class="btn small" data-action="open-models">Modelos de briefing</button>
+        </div>
         <div class="briefingAnswers" style="margin-top:12px">
           ${briefingResponses.map(response=>{
             const template = briefingTemplates.find(t=>t.id===response.templateId);
@@ -627,86 +615,250 @@ const STATUS = {
                 <div class="meta">Cliente: ${escapeHtml(response.client)} • Modelo: ${escapeHtml(template?.name || response.templateId)}</div>
                 <p>${escapeHtml(response.summary)}</p>
                 <div class="meta">Respondido em ${formatDatePtBR(response.respondedAt)}</div>
+                <div class="briefingAnswerActions">
+                  <button class="btn small" data-action="edit-existing" data-id="${response.templateId}">Editar briefing</button>
+                </div>
               </article>
             `;
           }).join('')}
         </div>
       `;
 
-      const editorCard = document.createElement('div');
-      editorCard.className = 'card';
-      editorCard.innerHTML = selectedTemplate ? `
+      const setupCard = document.createElement('div');
+      setupCard.className = 'card';
+      setupCard.innerHTML = `
+        <h3>Novo briefing</h3>
+        <p>Ao criar um novo briefing você entra em uma página de configuração para escolher como iniciar o processo.</p>
+        <button class="btn primary" data-action="start-new-briefing">+ Criar novo briefing</button>
+      `;
+
+      wrap.appendChild(responsesCard);
+      wrap.appendChild(setupCard);
+
+      wrap.querySelector('[data-action="open-models"]')?.addEventListener('click', openBriefingTemplatesModal);
+      wrap.querySelector('[data-action="start-new-briefing"]')?.addEventListener('click', ()=>openBriefingSetup('new'));
+      wrap.querySelectorAll('[data-action="edit-existing"]').forEach(btn=>{
+        btn.addEventListener('click', ()=>openBriefingSetup('edit', btn.dataset.id));
+      });
+
+      return wrap;
+    }
+
+    function renderBriefingSetupView(){
+      const wrap = document.createElement('div');
+      const selectedTemplate = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId) || briefingTemplates[0];
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
         <div class="briefingSectionHead">
           <div>
-            <h3>Builder do briefing: ${escapeHtml(selectedTemplate.name)}</h3>
-            <p>Estrutura inicial no estilo Typeform para montar perguntas em etapas.</p>
+            <h3>${briefingBuilderContext?.mode === 'edit' ? 'Editar briefing existente' : 'Iniciar novo briefing'}</h3>
+            <p>Escolha um modelo e abra o criador em sobreposição para montar o formulário com visualização em tempo real.</p>
           </div>
-          <span class="pill">${selectedTemplate.questions.length} perguntas</span>
+          <button class="btn small" data-action="back-briefings">Voltar ao painel</button>
         </div>
-        <div class="files" style="margin-top:10px">
-          ${selectedTemplate.questions.map((question, idx)=>`
-            <div class="file">
-              <div style="min-width:0">
-                <div class="name">${idx+1}. ${escapeHtml(question.label)}</div>
-                <div class="meta">${escapeHtml(question.type)}</div>
+        <div class="briefingSetupGrid" style="margin-top:12px">
+          ${briefingTemplates.map(template=>`
+            <article class="briefingCard ${template.id===selectedBriefingTemplateId ? 'selected' : ''}">
+              <div class="briefingCardTop">
+                <div>
+                  <h4>${escapeHtml(template.name)}</h4>
+                  <div class="meta">${template.questions.length} perguntas • atualizado em ${formatDatePtBR(template.updatedAt)}</div>
+                </div>
+                <span class="pill">${escapeHtml(template.channel)}</span>
               </div>
-              <div style="display:flex; gap:6px;">
-                <button class="btn small" data-action="move-question" data-id="${selectedTemplate.id}" data-qid="${question.id}" data-dir="up">↑</button>
-                <button class="btn small" data-action="move-question" data-id="${selectedTemplate.id}" data-qid="${question.id}" data-dir="down">↓</button>
-                <button class="btn small danger" data-action="delete-question" data-id="${selectedTemplate.id}" data-qid="${question.id}">Excluir</button>
+              <div class="briefingCardActions">
+                <button class="btn small" data-action="select-template" data-id="${template.id}">Selecionar</button>
+                <button class="btn small" data-action="rename-template" data-id="${template.id}">Renomear</button>
+                <button class="btn small" data-action="duplicate-template" data-id="${template.id}">Duplicar</button>
               </div>
-            </div>
+            </article>
           `).join('')}
         </div>
-        <div class="briefingBuilderRow">
-          <input class="input" id="newQuestionLabel" placeholder="Nova pergunta" />
-          <select class="select" id="newQuestionType">
-            <option>Long text</option>
-            <option>Short text</option>
-            <option>Multiple choice</option>
-            <option>Email</option>
-          </select>
-          <button class="btn primary" data-action="add-question" data-id="${selectedTemplate.id}">Adicionar pergunta</button>
+        <div class="briefingSetupActions" style="margin-top:12px">
+          <button class="btn" data-action="open-models">Modelos de briefing</button>
+          <button class="btn primary" data-action="open-builder">Abrir criador de formulário</button>
         </div>
-      ` : '<p>Nenhum modelo de briefing encontrado.</p>';
+      `;
 
-      wrap.appendChild(modelCard);
-      wrap.appendChild(responsesCard);
-      wrap.appendChild(editorCard);
+      wrap.appendChild(card);
 
-      wrap.querySelector('[data-action="new-template"]')?.addEventListener('click', createBriefingTemplate);
-      wrap.querySelectorAll('[data-action="open-template"]').forEach(btn=>{
+      wrap.querySelector('[data-action="back-briefings"]')?.addEventListener('click', ()=>{
+        currentView = 'briefings';
+        renderAll();
+      });
+      wrap.querySelectorAll('[data-action="select-template"]').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           selectedBriefingTemplateId = btn.dataset.id;
           renderMain();
         });
-      });
-      wrap.querySelectorAll('[data-action="edit-template"]').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          selectedBriefingTemplateId = btn.dataset.id;
-          addToast('Modo de edição aberto no builder abaixo.');
-          renderMain();
-        });
-      });
-      wrap.querySelectorAll('[data-action="duplicate-template"]').forEach(btn=>{
-        btn.addEventListener('click', ()=>duplicateBriefingTemplate(btn.dataset.id));
       });
       wrap.querySelectorAll('[data-action="rename-template"]').forEach(btn=>{
         btn.addEventListener('click', ()=>renameBriefingTemplate(btn.dataset.id));
       });
-      wrap.querySelectorAll('[data-action="move-question"]').forEach(btn=>{
-        btn.addEventListener('click', ()=>moveBriefingQuestion(btn.dataset.id, btn.dataset.qid, btn.dataset.dir));
+      wrap.querySelectorAll('[data-action="duplicate-template"]').forEach(btn=>{
+        btn.addEventListener('click', ()=>duplicateBriefingTemplate(btn.dataset.id));
       });
-      wrap.querySelectorAll('[data-action="delete-question"]').forEach(btn=>{
-        btn.addEventListener('click', ()=>deleteBriefingQuestion(btn.dataset.id, btn.dataset.qid));
-      });
-      wrap.querySelector('[data-action="add-question"]')?.addEventListener('click', ()=>{
-        const label = (wrap.querySelector('#newQuestionLabel')?.value || '').trim();
-        const type = wrap.querySelector('#newQuestionType')?.value || 'Long text';
-        addBriefingQuestion(selectedTemplate.id, label, type);
-      });
+      wrap.querySelector('[data-action="open-builder"]')?.addEventListener('click', ()=>openBriefingBuilderModal(selectedTemplate.id));
+      wrap.querySelector('[data-action="open-models"]')?.addEventListener('click', openBriefingTemplatesModal);
 
       return wrap;
+    }
+
+    function openBriefingSetup(mode, templateId){
+      briefingBuilderContext = { mode: mode || 'new' };
+      if(templateId) selectedBriefingTemplateId = templateId;
+      currentView = 'briefingSetup';
+      renderAll();
+    }
+
+    function openBriefingTemplatesModal(){
+      const selectedTemplate = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId) || briefingTemplates[0];
+      const html = `
+        <div class="briefingModalHead">
+          <div>
+            <h3>Modelos de briefing</h3>
+            <p>Todos os modelos ficam acessíveis aqui por botão, sem poluir o painel principal.</p>
+          </div>
+          <button class="btn small primary" data-action="new-template">+ Novo briefing</button>
+        </div>
+        <div class="briefingGrid" style="margin-top:12px">
+          ${briefingTemplates.map(template=>`
+            <article class="briefingCard ${template.id===selectedTemplate?.id ? 'selected' : ''}">
+              <div class="briefingCardTop">
+                <div>
+                  <h4>${escapeHtml(template.name)}</h4>
+                  <div class="meta">${template.questions.length} perguntas • atualizado em ${formatDatePtBR(template.updatedAt)}</div>
+                </div>
+                <span class="pill">${escapeHtml(template.channel)}</span>
+              </div>
+              <div class="briefingCardActions">
+                <button class="btn small" data-action="pick-template" data-id="${template.id}">Usar</button>
+                <button class="btn small" data-action="edit-template" data-id="${template.id}">Editar</button>
+                <button class="btn small" data-action="duplicate-template" data-id="${template.id}">Duplicar</button>
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      `;
+      openBriefingOverlay('Modelos de briefing', html, (container)=>{
+        container.querySelector('[data-action="new-template"]')?.addEventListener('click', ()=>{
+          createBriefingTemplate();
+          openBriefingTemplatesModal();
+        });
+        container.querySelectorAll('[data-action="pick-template"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            selectedBriefingTemplateId = btn.dataset.id;
+            closeBriefingOverlay();
+            addToast('Modelo selecionado para o briefing.');
+            renderAll();
+          });
+        });
+        container.querySelectorAll('[data-action="edit-template"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>openBriefingBuilderModal(btn.dataset.id));
+        });
+        container.querySelectorAll('[data-action="duplicate-template"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>duplicateBriefingTemplate(btn.dataset.id));
+        });
+      });
+    }
+
+    function openBriefingBuilderModal(templateId){
+      const template = briefingTemplates.find(t=>t.id===templateId);
+      if(!template) return;
+      selectedBriefingTemplateId = template.id;
+
+      const html = `
+        <div class="briefingBuilderModal">
+          <div class="briefingBuilderStage">
+            <div class="briefingSectionHead">
+              <div>
+                <h3>Builder: ${escapeHtml(template.name)}</h3>
+                <p>Modo visual com organização de perguntas no estilo arrastar/reordenar e prévia em tempo real.</p>
+              </div>
+              <span class="pill">${template.questions.length} perguntas</span>
+            </div>
+            <div class="files" style="margin-top:10px">
+              ${template.questions.map((question, idx)=>`
+                <div class="file">
+                  <div style="min-width:0">
+                    <div class="name">${idx+1}. ${escapeHtml(question.label)}</div>
+                    <div class="meta">${escapeHtml(question.type)}</div>
+                  </div>
+                  <div style="display:flex; gap:6px;">
+                    <button class="btn small" data-action="move-question" data-id="${template.id}" data-qid="${question.id}" data-dir="up">↑</button>
+                    <button class="btn small" data-action="move-question" data-id="${template.id}" data-qid="${question.id}" data-dir="down">↓</button>
+                    <button class="btn small danger" data-action="delete-question" data-id="${template.id}" data-qid="${question.id}">Excluir</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="briefingBuilderRow">
+              <input class="input" id="newQuestionLabel" placeholder="Nova pergunta" />
+              <select class="select" id="newQuestionType">
+                <option>Long text</option>
+                <option>Short text</option>
+                <option>Multiple choice</option>
+                <option>Email</option>
+              </select>
+              <button class="btn primary" data-action="add-question" data-id="${template.id}">Adicionar pergunta</button>
+            </div>
+          </div>
+          <aside class="briefingPreviewPane">
+            <h4>Pré-visualização (cliente)</h4>
+            <p class="meta">Link compartilhável será atualizado a cada salvamento.</p>
+            <div class="briefingPreviewPhone">
+              <div class="briefingPreviewHeader">${escapeHtml(template.name)}</div>
+              ${template.questions.map((question, idx)=>`
+                <div class="briefingPreviewQuestion">
+                  <label>${idx+1}. ${escapeHtml(question.label)}</label>
+                  <div class="briefingPreviewInput">${escapeHtml(question.type)}</div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="briefingShareLink">https://gruta.studio/briefing/${template.id.toLowerCase()}</div>
+            <button class="btn small" data-action="copy-link">Copiar link</button>
+          </aside>
+        </div>
+      `;
+
+      openBriefingOverlay(`Builder — ${template.name}`, html, (container)=>{
+        container.querySelectorAll('[data-action="move-question"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>moveBriefingQuestion(btn.dataset.id, btn.dataset.qid, btn.dataset.dir, true));
+        });
+        container.querySelectorAll('[data-action="delete-question"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>deleteBriefingQuestion(btn.dataset.id, btn.dataset.qid, true));
+        });
+        container.querySelector('[data-action="add-question"]')?.addEventListener('click', ()=>{
+          const label = (container.querySelector('#newQuestionLabel')?.value || '').trim();
+          const type = container.querySelector('#newQuestionType')?.value || 'Long text';
+          addBriefingQuestion(template.id, label, type, true);
+        });
+        container.querySelector('[data-action="copy-link"]')?.addEventListener('click', ()=>{
+          addToast('Link do briefing copiado (mock).');
+        });
+      });
+    }
+
+    function openBriefingOverlay(title, contentHtml, onReady){
+      const backdrop = el('briefingOverlayBackdrop');
+      const titleEl = el('briefingOverlayTitle');
+      const contentEl = el('briefingOverlayContent');
+      if(!backdrop || !titleEl || !contentEl) return;
+      titleEl.textContent = title;
+      contentEl.innerHTML = contentHtml;
+      backdrop.classList.add('open');
+      backdrop.setAttribute('aria-hidden', 'false');
+      if(typeof onReady === 'function') onReady(contentEl);
+    }
+
+    function closeBriefingOverlay(){
+      const backdrop = el('briefingOverlayBackdrop');
+      if(!backdrop) return;
+      backdrop.classList.remove('open');
+      backdrop.setAttribute('aria-hidden', 'true');
+      renderAll();
     }
 
     function createBriefingTemplate(){
@@ -754,7 +906,7 @@ const STATUS = {
       addToast('Briefing renomeado.');
     }
 
-    function addBriefingQuestion(templateId, label, type){
+    function addBriefingQuestion(templateId, label, type, keepBuilderOpen = false){
       if(!label){
         addToast('Escreva a pergunta antes de adicionar.');
         return;
@@ -767,19 +919,29 @@ const STATUS = {
         label
       });
       template.updatedAt = today();
+      if(keepBuilderOpen){
+        openBriefingBuilderModal(templateId);
+        addToast('Pergunta adicionada e formulário salvo.');
+        return;
+      }
       renderMain();
     }
 
-    function deleteBriefingQuestion(templateId, questionId){
+    function deleteBriefingQuestion(templateId, questionId, keepBuilderOpen = false){
       const template = briefingTemplates.find(t=>t.id===templateId);
       if(!template) return;
       template.questions = template.questions.filter(q=>q.id !== questionId);
       template.questions = template.questions.map((question, idx)=>({ ...question, id: `Q-${idx + 1}` }));
       template.updatedAt = today();
+      if(keepBuilderOpen){
+        openBriefingBuilderModal(templateId);
+        addToast('Alterações salvas no formulário.');
+        return;
+      }
       renderMain();
     }
 
-    function moveBriefingQuestion(templateId, questionId, dir){
+    function moveBriefingQuestion(templateId, questionId, dir, keepBuilderOpen = false){
       const template = briefingTemplates.find(t=>t.id===templateId);
       if(!template) return;
       const idx = template.questions.findIndex(q=>q.id===questionId);
@@ -791,6 +953,11 @@ const STATUS = {
       template.questions.splice(target, 0, item);
       template.questions = template.questions.map((question, index)=>({ ...question, id: `Q-${index + 1}` }));
       template.updatedAt = today();
+      if(keepBuilderOpen){
+        openBriefingBuilderModal(templateId);
+        addToast('Ordem das perguntas atualizada.');
+        return;
+      }
       renderMain();
     }
 
