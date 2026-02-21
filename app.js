@@ -62,6 +62,12 @@ const STATUS = {
       }),
     ];
 
+    const CLIENT_USERS = [
+      { id:'CLI-001', name:'Daniel Branco', email:'daniel@exemplo.com', projects:['PRJ-2401'] },
+      { id:'CLI-002', name:'Conserve', email:'contato@conserve.com', projects:['PRJ-2402'] },
+      { id:'CLI-003', name:'Instituto Araripe', email:'equipe@araripe.org', projects:['PRJ-2403'] },
+    ];
+
     function seedProject(p){
       const now = new Date().toISOString().slice(0,10);
       const base = {
@@ -235,7 +241,7 @@ const STATUS = {
         briefings: ['Briefing', 'Modelos (tipo Typeform) • respostas • PDF editorial (placeholder).'],
         budgets: ['Orçamento', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
         methods: ['Metodologia', 'Banco de metodologias com horas estimadas (base para orçamento).'],
-        clientPortal: ['Portal do cliente', 'Visão do cliente: briefing, status, mensagens e downloads (stub).'],
+        clientPortal: ['Clientes', 'Administrar e gerenciar contas de clientes com acesso à plataforma.'],
       };
       const [t,s] = titleMap[currentView] || titleMap.home;
       el('mainTitle').textContent = t;
@@ -384,11 +390,12 @@ const STATUS = {
     function renderHomeView(){
       const wrap = document.createElement('div');
       const shortcuts = [
-        ['projects','Projetos','Organize sua carteira e abra cada projeto para ver todos os detalhes.'],
-        ['briefings','Briefings','Acompanhe formulários, respostas e materiais enviados pelo cliente.'],
-        ['budgets','Orçamentos','Monte propostas com mais agilidade e exporte para apresentação.'],
-        ['methods','Metodologias','Consulte métodos prontos e horas estimadas para cada entrega.'],
-        ['clientPortal','Portal do cliente','Veja a experiência que o cliente terá no acompanhamento do trabalho.'],
+        { title:'Projetos pendentes', desc:'Abre projetos com pendências nas etapas de pré-projeto, briefing e orçamento.', action: ()=>navigateProjectsWithFilter('pending') },
+        { title:'Briefings pendentes', desc:'Mostra somente projetos com briefing enviado e aguardando resposta.', action: ()=>navigateProjectsWithFilter('brief_pending') },
+        { title:'Briefings respondidos', desc:'Lista projetos com briefing respondido para acelerar próximos passos.', action: ()=>navigateProjectsWithFilter('brief_done') },
+        { title:'Orçamentos pendentes', desc:'Exibe propostas enviadas e que ainda aguardam decisão do cliente.', action: ()=>navigateProjectsWithFilter('budget_pending') },
+        { title:'Orçamentos aprovados', desc:'Mostra projetos aprovados e prontos para seguir para execução.', action: ()=>navigateProjectsWithFilter('approved') },
+        { title:'Adicionar metodologia', desc:'Acesso rápido para cadastrar uma nova metodologia com horas estimadas.', action: ()=>openNewMethodModal() },
       ];
 
       const now = new Date();
@@ -400,7 +407,7 @@ const STATUS = {
       welcome.className='card';
       welcome.innerHTML = `
         <h3>Bem-vindo(a) 👋</h3>
-        <p>Hoje é ${weekday}, ${date}. Que bom ter você por aqui — selecione um atalho para começar.</p>
+        <p>Hoje é ${weekday}, ${date}. Que bom ter você por aqui — use os atalhos para abrir visões já filtradas e ganhar tempo no dia.</p>
       `;
 
       const kpiCard = document.createElement('div');
@@ -418,15 +425,11 @@ const STATUS = {
 
       const grid = document.createElement('div');
       grid.className='homeShortcutGrid';
-      shortcuts.forEach(([view,title,desc])=>{
+      shortcuts.forEach(({title,desc,action})=>{
         const c = document.createElement('article');
         c.className='homeShortcutCard';
-        c.innerHTML = `<h3>${title}</h3><p>${desc}</p><button class="btn small">Ir para ${title}</button>`;
-        c.querySelector('button').addEventListener('click', ()=>{
-          currentView = view;
-          leftNavLinks.forEach(x=>x.classList.toggle('active', x.dataset.view===view));
-          renderAll();
-        });
+        c.innerHTML = `<h3>${title}</h3><p>${desc}</p><button class="btn small">Abrir atalho</button>`;
+        c.querySelector('button').addEventListener('click', action);
         grid.appendChild(c);
       });
 
@@ -624,6 +627,16 @@ const STATUS = {
     function renderMethodsView(){
       const wrap = document.createElement('div');
 
+      const actions = document.createElement('div');
+      actions.className = 'card';
+      actions.innerHTML = `
+        <h3>Gerenciar metodologias</h3>
+        <p>Cadastre novos métodos para já utilizar no orçamento.</p>
+        <button class="btn small" id="btnNewMethod">+ Nova metodologia</button>
+      `;
+      wrap.appendChild(actions);
+      actions.querySelector('#btnNewMethod')?.addEventListener('click', openNewMethodModal);
+
       METHOD_LIBRARY.forEach(m=>{
         const c = document.createElement('div');
         c.className = 'card';
@@ -659,10 +672,18 @@ const STATUS = {
       const c = document.createElement('div');
       c.className = 'card';
       c.innerHTML = `
-        <h3>Portal do cliente (stub)</h3>
-        <p>Área logada para acompanhar briefing, status, mensagens e baixar arquivos do projeto.</p>
-        <div class="helper" style="margin-top:10px">
-          Neste MVP, o detalhamento completo do projeto fica em uma página dedicada dentro da visão de Projetos.
+        <h3>Clientes cadastrados</h3>
+        <p>Neste momento, esta área mostra apenas as contas de clientes adicionadas na plataforma.</p>
+        <div class="files" style="margin-top:10px">
+          ${CLIENT_USERS.map(client=>`
+            <div class="file">
+              <div style="min-width:0">
+                <div class="name">${escapeHtml(client.name)}</div>
+                <div class="meta">${escapeHtml(client.email)} • Projetos vinculados: ${client.projects.length}</div>
+              </div>
+              <span class="pill">cliente</span>
+            </div>
+          `).join('')}
         </div>
       `;
       wrap.appendChild(c);
@@ -670,8 +691,8 @@ const STATUS = {
       const c2 = document.createElement('div');
       c2.className='card';
       c2.innerHTML = `
-        <h3>Conteúdos previstos</h3>
-        <p>Briefing • Timeline • Mensagens • Downloads • Módulos (Mood Art / Identidade: fontes, cores, decisões).</p>
+        <h3>Onde configurar o que o cliente enxerga</h3>
+        <p>As informações visíveis ao cliente serão definidas dentro de cada projeto: conteúdos, links e mensagens na página do projeto.</p>
       `;
       wrap.appendChild(c2);
 
@@ -774,6 +795,40 @@ const STATUS = {
       renderDetail();
     }
 
+    function navigateProjectsWithFilter(nextFilter){
+      currentView = 'projects';
+      filterStatus = nextFilter;
+      searchQuery = '';
+      if(el('search')) el('search').value = '';
+      chips.forEach(x=>x.classList.toggle('active', x.dataset.filter === nextFilter));
+      leftNavLinks.forEach(x=>x.classList.toggle('active', x.dataset.view==='projects'));
+      renderAll();
+    }
+
+    function openNewMethodModal(){
+      const name = prompt('Nome da metodologia:');
+      if(!name) return;
+      const hoursRaw = prompt('Total de horas estimadas:', '40');
+      const hours = Number(hoursRaw);
+      if(!Number.isFinite(hours) || hours <= 0) return;
+
+      const nextNum = METHOD_LIBRARY.length + 1;
+      const id = `M-${String(nextNum).padStart(2,'0')}`;
+      METHOD_LIBRARY.push({
+        id,
+        name: name.trim(),
+        hours: Math.round(hours),
+        steps: [
+          ['Planejamento', Math.max(1, Math.round(hours*0.2))],
+          ['Execução', Math.max(1, Math.round(hours*0.6))],
+          ['Entrega', Math.max(1, Math.round(hours*0.2))],
+        ],
+      });
+      currentView = 'methods';
+      leftNavLinks.forEach(x=>x.classList.toggle('active', x.dataset.view==='methods'));
+      renderAll();
+    }
+
     function getFilteredProjects(){
       return projects
         .filter(p=>{
@@ -782,6 +837,11 @@ const STATUS = {
           if(filterStatus === 'brief') return STATUS[p.status]?.group === 'brief';
           if(filterStatus === 'budget') return STATUS[p.status]?.group === 'budget';
           if(filterStatus === 'active') return STATUS[p.status]?.group === 'active';
+          if(filterStatus === 'pending') return ['PRE','BRIEF_SENT','BRIEF_DONE','BUDGET_SENT'].includes(p.status);
+          if(filterStatus === 'brief_pending') return p.status === 'BRIEF_SENT';
+          if(filterStatus === 'brief_done') return p.status === 'BRIEF_DONE';
+          if(filterStatus === 'budget_pending') return p.status === 'BUDGET_SENT';
+          if(filterStatus === 'approved') return p.status === 'APPROVED';
           return true;
         })
         .filter(p=>{
