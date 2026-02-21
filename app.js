@@ -237,6 +237,7 @@ const STATUS = {
         budgets: ['Orçamento', 'Simulação • importação do briefing • metodologia + horas • porte interno • PDF (placeholder).'],
         methods: ['Metodologia', 'Banco de metodologias com horas estimadas (base para orçamento).'],
         clients: ['Clientes', 'Contas de clientes cadastradas na plataforma para acesso ao portal.'],
+        clientPortal: ['Clientes', 'Contas de clientes cadastradas na plataforma para acesso ao portal.'],
       };
       const [t,s] = titleMap[currentView] || titleMap.home;
       el('mainTitle').textContent = t;
@@ -302,7 +303,7 @@ const STATUS = {
         body.appendChild(renderMethodsView());
         return;
       }
-      if(currentView === 'clients'){
+      if(currentView === 'clients' || currentView === 'clientPortal'){
         body.appendChild(renderClientsView());
         return;
       }
@@ -644,7 +645,7 @@ const STATUS = {
     }
 
     function openView(view){
-      currentView = view;
+      currentView = (view === 'clientPortal') ? 'clients' : view;
       quickFilterMode = null;
       leftNavLinks.forEach(x=>x.classList.toggle('active', x.dataset.view===view));
       renderAll();
