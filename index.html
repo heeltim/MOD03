@@ -45,7 +45,7 @@
           </a>
           <a href="#" data-view="briefings">
             Briefing
-            <small>modelos • respostas</small>
+            <small>respostas • acesso aos modelos</small>
           </a>
           <a href="#" data-view="budgets">
             Orçamento
@@ -168,6 +168,20 @@
   </div>
 
   
+
+  <!-- MODAL: Briefing builder / templates -->
+  <div class="modalBackdrop" id="briefingOverlayBackdrop" aria-hidden="true">
+    <div class="modal modalWide" role="dialog" aria-modal="true" aria-labelledby="briefingOverlayTitle">
+      <div class="modalHead">
+        <div class="title" id="briefingOverlayTitle">Modelos de briefing</div>
+        <button class="btn small ghost" id="btnCloseBriefingOverlay">✕</button>
+      </div>
+      <div class="modalBody modalBodySingle" id="briefingOverlayContent"></div>
+      <div class="modalFoot">
+        <button class="btn primary" id="btnSaveBriefingOverlay">Salvar formulário</button>
+      </div>
+    </div>
+  </div>
 
   <!-- PRINT HOST: Budget template (styled to match uploaded PDF; exported via browser Print to PDF) -->
   <div id="printHost">
