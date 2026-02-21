@@ -297,52 +297,46 @@ const STATUS = {
 
     function renderProjectsTable(){
       const wrap = document.createElement('div');
-
-      const table = document.createElement('table');
-      table.className = 'table';
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th style="width:18%">ID</th>
-            <th style="width:34%">Projeto</th>
-            <th style="width:20%">Cliente</th>
-            <th style="width:16%">Status</th>
-            <th style="width:12%">Ações</th>
-          </tr>
-        </thead>
-      `;
-
-      const tbody = document.createElement('tbody');
-
       const list = getFilteredProjects();
 
+      const cards = document.createElement('div');
+      cards.className = 'projectList';
+
       list.forEach(p=>{
-        const tr = document.createElement('tr');
-        tr.className = 'tr';
-        tr.dataset.pid = p.id;
-        tr.style.cursor='pointer';
+        const card = document.createElement('article');
+        card.className = 'projectCard project-item';
+        card.dataset.pid = p.id;
 
         const status = STATUS[p.status] || STATUS.PRE;
+        const visual = projectVisual(p);
 
-        tr.innerHTML = `
-          <td class="mono">${p.id}</td>
-          <td>
-            <div style="font-weight:700">${escapeHtml(p.name)}</div>
-            <div class="muted" style="font-size:11px;margin-top:2px;">
-              Responsável: ${escapeHtml(p.owner)} • Criado: ${p.createdAt}
+        card.innerHTML = `
+          <div class="projectIdentity">
+            <div class="projectGlyph" aria-hidden="true">${visual.glyph}</div>
+            <div>
+              <div class="projectCode">${escapeHtml(visual.code)}</div>
+              <div class="projectLabel">${escapeHtml(visual.label)}</div>
             </div>
-          </td>
-          <td>
-            <div>${escapeHtml(p.client)}</div>
-            <div class="muted" style="font-size:11px;margin-top:2px;">
-              Briefing: ${escapeHtml(p.briefingModel)}
-            </div>
-          </td>
-          <td>${statusBadge(status)}</td>
-          <td><button class="btn small" data-action="advance">Avançar</button></td>
+          </div>
+
+          <div class="projectMain">
+            <h3>${escapeHtml(p.name)}</h3>
+            <p>${escapeHtml(p.client)} • ${escapeHtml(p.briefingModel)}</p>
+          </div>
+
+          <div class="projectMeta">
+            <span>Responsável: <b>${escapeHtml(p.owner)}</b></span>
+            <span>Criado: <b>${p.createdAt}</b></span>
+            ${statusBadge(status)}
+          </div>
+
+          <div class="projectActions">
+            <button class="btn small" data-action="open">Abrir</button>
+            <button class="btn small" data-action="advance">Avançar etapa</button>
+          </div>
         `;
 
-        tr.addEventListener('click', (e)=>{
+        card.addEventListener('click', (e)=>{
           const btn = e.target.closest('button');
           if(btn && btn.dataset.action === 'advance'){
             e.preventDefault();
@@ -354,11 +348,10 @@ const STATUS = {
           highlightSelectedRow();
         });
 
-        tbody.appendChild(tr);
+        cards.appendChild(card);
       });
 
-      table.appendChild(tbody);
-      wrap.appendChild(table);
+      wrap.appendChild(cards);
 
       if(list.length === 0){
         const empty = document.createElement('div');
@@ -372,6 +365,18 @@ const STATUS = {
 
       highlightSelectedRow();
       return wrap;
+    }
+
+    function projectVisual(project){
+      const base = `${project.name || project.client || 'Projeto'}`.trim();
+      const words = base.split(/\s+/).filter(Boolean);
+      const glyph = words.slice(0,2).map(w=>w[0]).join('').toUpperCase() || 'P';
+      const cleanId = project.id.replace(/^PRJ-/, '');
+      return {
+        glyph,
+        code: `Projeto ${cleanId}`,
+        label: `Ref. ${glyph}-${cleanId.slice(-2) || '00'}`
+      };
     }
 
     function renderBriefingsView(){
@@ -752,15 +757,9 @@ const STATUS = {
     }
 
     function highlightSelectedRow(){
-      const rows = Array.from(document.querySelectorAll('.tr'));
+      const rows = Array.from(document.querySelectorAll('.project-item'));
       rows.forEach(r=>{
-        if(r.dataset.pid === selectedProjectId){
-          r.style.outline = '2px solid rgba(255,138,61,.35)';
-          r.style.background = 'rgba(255,138,61,.08)';
-        }else{
-          r.style.outline = 'none';
-          r.style.background = 'rgba(255,255,255,.04)';
-        }
+        r.classList.toggle('selected', r.dataset.pid === selectedProjectId);
       });
     }
 
