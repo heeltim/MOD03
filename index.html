@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gruta Núcleo Studio v1</title>
+  
+
+  <!-- Tailwind (CDN) added for rapid UI prototyping; legacy CSS remains intact -->
+  <script src="https://cdn.tailwindcss.com">
+    // ===== Budget template (based on uploaded "Orçamento GRUTA 2024" PDF) =====
+    function getProjectForBudgetTemplate(){
+      // Prefer selected project; fallback to first project with budget
+      let p = projects.find(x=>x.id===selectedProjectId);
+      if(!p || !p.budget) p = projects.find(x=>x.budget) || projects[0];
+      return p;
+    }
+
+    function formatDatePtBR(iso){
+      if(!iso) return '—';
+      const [y,m,d] = iso.split('-');
+      if(!y||!m||!d) return iso;
+      return `${d}/${m}/${y}`;
+    }
+
+    function moneyBRL(v){
+      const n = Number(v||0);
+      return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function buildBudgetPrintHTML(p){
+      const b = p.budget || { hours: 0, hourly: 0, porte: 'MEDIO', methodId: METHOD_LIBRARY[0]?.id };
+      const method = METHOD_LIBRARY.find(m=>m.id===b.methodId) || METHOD_LIBRARY[0];
+      const mult = PORTE_TABLE[b.porte]?.multiplier ?? 1;
+      const subtotal = (b.hours||0) * (b.hourly||0);
+      const total = subtotal * mult;
+
+      // Map minimal "campos" do PDF para o nosso modelo
+      const headerCity = "Crato/PB";
+      const headerDate = formatDatePtBR(today());
+      const atendimento = (p.briefing?.contact || '').trim() || '—';
+      const responsavel = p.owner || '—';
+      const validade = '15 dias';
+      const tipoServico = (p.briefingModel?.toLowerCase().includes('site') ? 'site institucional' : 'projeto de design');
+
+      const clienteNome = p.client || '—';
+      const projetoNome = p.name || '—';
+
+      // Descrição do projeto: usa resumo do briefing como base
+      const descricao = (p.briefing?.summary || '').trim() || 'Descrição do projeto (preencher a partir do briefing).';
+
+      // Etapas: usa steps da metodologia
+      const steps = (method?.steps || []).map(([name,h]) => ({ name, h }));
+
+      // Itens de terceiros (mantém linhas do modelo; valores editáveis no futuro)
+      const investimentoLinhas = [
+        { item:'Domínio .org.br (anual)', wp:'R$ 40 a 60', wix:'Incluso 1º ano' },
+        { item:'Hospedagem (anual)', wp:'R$ 300 a 600', wix:'Incluso no plano' },
+        { item:'Google Workspace (anual por conta)', wp:'R$ 300 a 400', wix:'R$ 300 a 400' },
+        { item:'Assinatura da plataforma (plano)', wp:'Gratuito (software livre)', wix:'R$ 180/ano (R$ 15/mês)' },
+      ];
+
+      return `
+        <div class="max-w-[820px] mx-auto">
+          <!-- Header -->
+          <div class="flex items-start justify-between gap-6">
+            <div>
+              <div class="text-sm">${headerCity},</div>
+              <div class="text-sm">${headerDate}</div>
+              <div class="mt-4 text-sm"><span class="font-semibold">Atendimento:</span> ${escapeHtml(atendimento)}</div>
+              <div class="text-sm"><span class="font-semibold">Responsável:</span> ${escapeHtml(responsavel)}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-sm"><span class="font-semibold">Validade:</span> ${validade}</div>
+              <div class="text-sm mt-1">${escapeHtml(tipoServico)}</div>
+            </div>
+          </div>
+
+          <div class="mt-6 border-t border-slate-200 pt-4">
+            <div class="text-xl font-semibold tracking-tight">${escapeHtml(projetoNome)}</div>
+            <div class="text-sm text-slate-600 mt-1">${escapeHtml(clienteNome)}</div>
+          </div>
+
+          <!-- Descrição -->
+          <div class="mt-6">
+            <div class="text-sm font-semibold tracking-wide">DESCRIÇÃO DO PROJETO</div>
+            <div class="mt-2 text-sm leading-relaxed text-slate-800">
+              ${escapeHtml(descricao)}
+            </div>
+          </div>
+
+          <!-- Etapas -->
+          <div class="mt-6">
+            <div class="text-sm font-semibold tracking-wide">ETAPAS DE EXECUÇÃO / CRIAÇÃO</div>
+            <div class="mt-2 grid grid-cols-1 gap-2">
+              ${steps.map(s=>`
+                <div class="flex items-center justify-between border border-slate-200 rounded-lg px-3 py-2">
+                  <div class="text-sm">${escapeHtml(s.name)}</div>
+                  <div class="text-sm font-semibold">${s.h}h</div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="mt-3 text-sm text-slate-600">
+              <span class="font-semibold">Total horas:</span> ${b.hours}h • 
+              <span class="font-semibold">Valor/h:</span> R$ ${moneyBRL(b.hourly)} • 
+              <span class="font-semibold">Multiplicador (interno):</span> ${PORTE_TABLE[b.porte]?.label || b.porte} (${mult.toFixed(2)})
+            </div>
+          </div>
+
+          <!-- Investimento -->
+          <div class="mt-8">
+            <div class="text-sm font-semibold tracking-wide">INVESTIMENTO</div>
+
+            <div class="mt-3 border border-slate-200 rounded-xl overflow-hidden">
+              <div class="grid grid-cols-3 bg-slate-50 text-xs font-semibold">
+                <div class="px-3 py-2">Item</div>
+                <div class="px-3 py-2">WordPress</div>
+                <div class="px-3 py-2">Wix Plano Básico*</div>
+              </div>
+              ${investimentoLinhas.map(r=>`
+                <div class="grid grid-cols-3 text-xs border-t border-slate-200">
+                  <div class="px-3 py-2">${escapeHtml(r.item)}</div>
+                  <div class="px-3 py-2">${escapeHtml(r.wp)}</div>
+                  <div class="px-3 py-2">${escapeHtml(r.wix)}</div>
+                </div>
+              `).join('')}
+              <div class="grid grid-cols-3 text-xs border-t border-slate-200 bg-white">
+                <div class="px-3 py-2 font-semibold">Valor do projeto (serviço)</div>
+                <div class="px-3 py-2 font-semibold">R$ ${moneyBRL(total)}</div>
+                <div class="px-3 py-2 font-semibold">R$ ${moneyBRL(total)}</div>
+              </div>
+            </div>
+
+            <div class="mt-3 text-xs text-slate-600">
+              <span class="font-semibold">Observação:</span> No MVP, itens de terceiros são apenas referência do modelo. O total do serviço vem de horas × valor/h × multiplicador interno.
+            </div>
+          </div>
+
+          <!-- Cronograma (mock) -->
+          <div class="mt-8">
+            <div class="text-sm font-semibold tracking-wide">CRONOGRAMA</div>
+            <div class="mt-3 grid grid-cols-1 gap-2 text-sm">
+              <div class="border border-slate-200 rounded-lg p-3">
+                <div class="font-semibold">Início</div>
+                <div class="text-slate-600 text-xs mt-1">${formatDatePtBR(today())}</div>
+                <div class="text-slate-700 text-sm mt-2">Kickoff, alinhamento de materiais e acesso.</div>
+              </div>
+              <div class="border border-slate-200 rounded-lg p-3">
+                <div class="font-semibold">Etapas</div>
+                <div class="text-slate-700 text-sm mt-2">As etapas seguem a metodologia selecionada e são ajustáveis na versão completa.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Condições (resumo) -->
+          <div class="mt-8">
+            <div class="text-sm font-semibold tracking-wide">CONDIÇÕES GERAIS (resumo)</div>
+            <ul class="mt-2 text-xs text-slate-700 list-disc pl-5 space-y-1">
+              <li>Prazos dependem de envio de materiais e aprovações do cliente.</li>
+              <li>Serviços de terceiros (tradução, imagens, impressão) não inclusos.</li>
+              <li>Valores podem ser revistos por mudanças relevantes no briefing/escopo.</li>
+              <li>Aprovação formal por assinatura ou e-mail.</li>
+            </ul>
+          </div>
+
+          <!-- Rodapé -->
+          <div class="mt-10 pt-4 border-t border-slate-200 text-xs text-slate-500 flex justify-between">
+            <div>Modelo visual inspirado em “Orçamento GRUTA 2024”.</div>
+            <div>Gerado em ${headerDate}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function openBudgetTemplate(p){
+      const project = p || getProjectForBudgetTemplate();
+      const host = document.getElementById('printHost');
+      const area = document.getElementById('printArea');
+      area.innerHTML = buildBudgetPrintHTML(project);
+      host.style.display = 'block';
+      // Jump to top so user sees it
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      // Offer quick actions
+      const ok = confirm('Modelo de orçamento aberto em modo impressão.\n\nOK = abrir caixa de impressão (salvar como PDF)\nCancelar = apenas visualizar');
+      if(ok) window.print();
+    }
+
+    function closeBudgetTemplate(){
+      const host = document.getElementById('printHost');
+      host.style.display = 'none';
+    }
+
+    // Wire buttons (budgets view + project detail)
+    document.addEventListener('click', (e)=>{
+      if(e.target?.id === 'btnOpenBudgetTemplate'){
+        openBudgetTemplate();
+      }
+      if(e.target?.id === 'btnBudgetTemplateFromProject'){
+        const p = projects.find(x=>x.id===selectedProjectId);
+        openBudgetTemplate(p);
+      }
+      if(e.target?.id === 'btnBudgetPrintFromProject'){
+        const p = projects.find(x=>x.id===selectedProjectId);
+        openBudgetTemplate(p);
+      }
+    });
+
+</script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="dots" aria-hidden="true"></div>
+
+  <div class="app">
+    <!-- LEFT: Navigation / Filters -->
+    <aside class="panel left" id="leftPanel">
+      <div class="panelHeader">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div class="brandText">
+            <div class="t">Gruta Núcleo Studio — MVP</div>
+            <div class="s">Briefing • Orçamento • Metodologias</div>
+          </div>
+        </div>
+        <span class="pill" title="Modo MVP estático (HTML único)">
+          <span class="dot"></span> MVP
+        </span>
+      </div>
+
+      <div class="panelBody">
+        <button class="btn primary" id="btnNewProject" style="width:100%">
+          + Novo pré-projeto
+        </button>
+
+        <div class="sectionTitle" style="margin-top:16px;">
+          Visões
+          <small class="muted">Equipe</small>
+        </div>
+
+        <nav class="nav" aria-label="Navegação">
+          <a href="#" class="active" data-view="projects">
+            Projetos
+            <small id="navCount"></small>
+          </a>
+          <a href="#" data-view="briefings">
+            Briefings
+            <small>modelos • respostas</small>
+          </a>
+          <a href="#" data-view="budgets">
+            Orçamentos
+            <small>simular • PDF</small>
+          </a>
+          <a href="#" data-view="methods">
+            Metodologias
+            <small>banco de horas</small>
+          </a>
+          <a href="#" data-view="clientPortal">
+            Portal do cliente
+            <small>área logada</small>
+          </a>
+        </nav>
+
+        <div class="sectionTitle">
+          Indicadores (mock)
+          <small class="muted">Dashboard</small>
+        </div>
+
+        <div class="kpiGrid" id="kpiGrid"></div>
+
+        <div class="sectionTitle">
+          Regras (essência)
+          <small class="muted">interno</small>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h3>Porte não é perguntado ao cliente</h3>
+          <p>Pequeno / Médio / Grande é definido pela equipe no Orçamento e influencia o valor final via multiplicador/tabela interna.</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER: Main content -->
+    <main class="panel content" id="mainPanel">
+      <div class="topbar">
+        <div class="left">
+          <div style="min-width:0">
+            <h1 id="mainTitle">Projetos</h1>
+            <div class="sub" id="mainSubtitle">Home administrativa: pipeline completo (pré-projeto → briefing → orçamento → aprovado → projeto ativo).</div>
+          </div>
+        </div>
+
+        <div class="searchWrap">
+          <input class="input" id="search" placeholder="Buscar por nome, cliente, ID…" />
+          <button class="btn small" id="btnReset">Limpar</button>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="chip active" data-filter="all">Todos</span>
+          <span class="chip" data-filter="pre">Pré-projeto</span>
+          <span class="chip" data-filter="brief">Briefing</span>
+          <span class="chip" data-filter="budget">Orçamento</span>
+          <span class="chip" data-filter="active">Ativo</span>
+        </div>
+      </div>
+
+      <div class="panelBody" id="mainBody"></div>
+    </main>
+
+    <!-- RIGHT: Details / Actions -->
+    <aside class="panel right" id="rightPanel">
+      <div class="panelHeader">
+        <div class="brand">
+          <div class="logo" aria-hidden="true" style="width:28px;height:28px;border-radius:11px;"></div>
+          <div class="brandText">
+            <div class="t" id="detailTitle">Selecione um projeto</div>
+            <div class="s" id="detailSub">Detalhes, ações rápidas e visão cliente</div>
+          </div>
+        </div>
+        <button class="btn small ghost" id="btnDeselect" title="Fechar seleção">✕</button>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Detalhes">
+        <div class="tab active" data-tab="overview" role="tab" aria-selected="true">Resumo</div>
+        <div class="tab" data-tab="timeline" role="tab" aria-selected="false">Status</div>
+        <div class="tab" data-tab="client" role="tab" aria-selected="false">Cliente</div>
+      </div>
+
+      <div class="panelBody" id="detailBody">
+        <div class="card">
+          <h3>Como usar este MVP</h3>
+          <p>Crie um pré-projeto, selecione um item na lista e use as ações para simular o fluxo (enviar briefing, receber resposta, enviar orçamento, aprovar).</p>
+        </div>
+        <div class="card">
+          <h3>O que está modelado</h3>
+          <p>Pipeline, PDFs (placeholder), banco de metodologias (mock), importação de dados do briefing para orçamento (mock) e portal do cliente (stub).</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- MODAL: New pre-project -->
+  <div class="modalBackdrop" id="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modalHead">
+        <div class="title" id="modalTitle">Novo pré-projeto</div>
+        <button class="btn small ghost" id="btnCloseModal">✕</button>
+      </div>
+      <div class="modalBody">
+        <div>
+          <div class="label">Nome provisório do projeto</div>
+          <input class="input" id="npName" placeholder="Ex: Identidade Visual — Empresa X" />
+
+          <div class="row">
+            <div>
+              <div class="label">Cliente / Instituição</div>
+              <input class="input" id="npClient" placeholder="Ex: Instituto Araripe" />
+            </div>
+            <div>
+              <div class="label">Responsável interno</div>
+              <input class="input" id="npOwner" placeholder="Ex: Equipe Design" />
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <div class="label">Modelo de briefing</div>
+              <select class="select" id="npBriefModel">
+                <option value="Jotform-2604338">Jotform (exemplo 2604338)</option>
+                <option value="BrandingBase">Briefing — Branding Base</option>
+                <option value="SiteInstitucional">Briefing — Site Institucional</option>
+              </select>
+            </div>
+            <div>
+              <div class="label">Canal de contato</div>
+              <select class="select" id="npChannel">
+                <option>Email</option>
+                <option>WhatsApp</option>
+                <option>Reunião</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="label">Observações internas</div>
+          <textarea class="textarea" id="npNotes" placeholder="Notas rápidas para a equipe (não visível ao cliente)."></textarea>
+
+          <div class="helper">
+            Ao criar, o pré-projeto aparece na Home. Depois você pode “gerar link do briefing” para compartilhar com o cliente.
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h3>Fluxo do pré-projeto</h3>
+            <p><span class="mono">Pré-projeto</span> é o “container inicial” — cria o briefing, recebe respostas, elabora orçamento e só vira Projeto Ativo após aprovação.</p>
+          </div>
+
+          <div class="card">
+            <h3>PDFs (MVP)</h3>
+            <p>Este MVP não renderiza PDFs reais. Ele gera “arquivos” placeholders na seção de arquivos para demonstrar o fluxo.</p>
+          </div>
+
+          <div class="card">
+            <h3>Módulos futuros</h3>
+            <p>O Projeto Ativo poderá ganhar módulos (ex: Mood Art, Identidade: fontes/paleta, decisões, anexos) — previsto na estrutura.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modalFoot">
+        <button class="btn" id="btnCancelModal">Cancelar</button>
+        <button class="btn primary" id="btnCreateProject">Criar pré-projeto</button>
+      </div>
+    </div>
+  </div>
+
+  
+
+  <!-- PRINT HOST: Budget template (styled to match uploaded PDF; exported via browser Print to PDF) -->
+  <div id="printHost">
+    <div id="printArea" class="min-h-screen bg-white text-slate-900 p-10">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
