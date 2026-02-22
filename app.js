@@ -216,6 +216,7 @@ const STATUS = {
         closeModal();
       });
 
+      el('btnTopNewBriefing')?.addEventListener('click', ()=>openNewBriefingFlow());
       el('btnCloseBriefingOverlay')?.addEventListener('click', closeBriefingOverlay);
       el('btnSaveBriefingOverlay')?.addEventListener('click', ()=>{
         if(activeSurveyCreator && typeof activeSurveyCreator.JSON === 'object'){
@@ -333,9 +334,12 @@ const STATUS = {
 
       const searchWrap = el('searchWrap');
       const filters = el('projectFilters');
+      const briefingTopAction = el('briefingTopAction');
       const showProjectTools = currentView === 'projects';
+      const showBriefingAction = currentView === 'briefings';
       if(searchWrap) searchWrap.style.display = showProjectTools ? 'flex' : 'none';
       if(filters) filters.style.display = showProjectTools ? 'flex' : 'none';
+      if(briefingTopAction) briefingTopAction.style.display = showBriefingAction ? 'flex' : 'none';
     }
 
     function renderCounts(){
@@ -650,27 +654,54 @@ const STATUS = {
         </div>
       `;
 
-      const setupCard = document.createElement('div');
-      setupCard.className = 'card';
-      setupCard.innerHTML = `
-        <h3>Novo briefing</h3>
-        <p>Ao criar um novo briefing você entra em uma página de configuração para escolher como iniciar o processo.</p>
-        <button class="btn primary" data-action="start-new-briefing">+ Criar novo briefing</button>
-      `;
-
       wrap.appendChild(responsesCard);
-      wrap.appendChild(setupCard);
 
       wrap.querySelector('[data-action="open-models"]')?.addEventListener('click', openBriefingTemplatesModal);
-      wrap.querySelector('[data-action="start-new-briefing"]')?.addEventListener('click', ()=>openBriefingSetup('new'));
       wrap.querySelectorAll('[data-action="edit-existing"]').forEach(btn=>{
-        btn.addEventListener('click', ()=>openBriefingSetup('edit', btn.dataset.id));
+        btn.addEventListener('click', ()=>openBriefingBuilderModal(btn.dataset.id));
       });
 
       return wrap;
     }
 
-    function renderBriefingSetupView(){
+    function openNewBriefingFlow(){
+      const html = `
+        <div class="briefingChoiceModal">
+          <div class="text-center mb-3">
+            <h3 class="text-base font-semibold text-slate-100">Como deseja iniciar?</h3>
+            <p class="text-xs text-slate-400 mt-1">Escolha uma das opções para abrir o construtor de formulário.</p>
+          </div>
+          <div class="briefingChoiceGrid">
+            <button class="briefingChoiceCard" data-action="start-from-scratch">
+              <span class="text-lg">🧩</span>
+              <strong>Criar novo formulário</strong>
+              <small>Inicie com estrutura em branco.</small>
+            </button>
+            <button class="briefingChoiceCard" data-action="start-from-template">
+              <span class="text-lg">📚</span>
+              <strong>Criar com base em modelo</strong>
+              <small>Use um modelo existente para acelerar.</small>
+            </button>
+          </div>
+        </div>
+      `;
+
+      openBriefingOverlay('Criar novo briefing', html, (container)=>{
+        container.querySelector('[data-action="start-from-scratch"]')?.addEventListener('click', ()=>{
+          const template = createBriefingTemplate('Briefing — Novo formulário');
+          if(!template) return;
+          closeBriefingOverlay();
+          openBriefingBuilderModal(template.id, 'edit');
+        });
+
+        container.querySelector('[data-action="start-from-template"]')?.addEventListener('click', ()=>{
+          closeBriefingOverlay();
+          openBriefingTemplatesModal({ autoOpenBuilder: true });
+        });
+      });
+    }
+
+function renderBriefingSetupView(){
       const wrap = document.createElement('div');
       const selectedTemplate = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId) || briefingTemplates[0];
 
@@ -739,7 +770,7 @@ const STATUS = {
       renderAll();
     }
 
-    function openBriefingTemplatesModal(){
+    function openBriefingTemplatesModal(options = {}){
       const selectedTemplate = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId) || briefingTemplates[0];
       const html = `
         <div class="briefingModalHead">
@@ -777,6 +808,10 @@ const STATUS = {
           btn.addEventListener('click', ()=>{
             selectedBriefingTemplateId = btn.dataset.id;
             closeBriefingOverlay();
+            if(options.autoOpenBuilder){
+              openBriefingBuilderModal(btn.dataset.id, 'edit');
+              return;
+            }
             addToast('Modelo selecionado para o briefing.');
             renderAll();
           });
@@ -850,7 +885,8 @@ const STATUS = {
         const creatorOptions = {
           showLogicTab: true,
           isAutoSave: false,
-          showTranslationTab: false
+          showTranslationTab: false,
+          questionTypes: ['text', 'comment', 'radiogroup', 'checkbox']
         };
         const CreatorClass = window.SurveyCreator?.SurveyCreator;
         const CreatorModelClass = window.SurveyCreatorCore?.SurveyCreatorModel;
@@ -861,6 +897,15 @@ const STATUS = {
           creator.render(creatorHost);
         }
         creator.JSON = schema;
+        if(creator.toolbox && creator.toolbox.changeCategories){
+          creator.toolbox.changeCategories([
+            {
+              name: 'Essenciais',
+              category: 'general',
+              items: ['text', 'comment', 'radiogroup', 'checkbox']
+            }
+          ], true);
+        }
         creator.onModified.add(()=>{
           applySurveySchemaToTemplate(template, creator.JSON);
         });
@@ -890,11 +935,18 @@ const STATUS = {
       const key = `q_${index + 1}`;
       const base = { name: key, title: question.label || `Pergunta ${index + 1}` };
       switch(question.type){
+        case 'Date/time':
+          return { ...base, type:'text', inputType:'date' };
+        case 'Phone':
+          return { ...base, type:'text', inputType:'tel' };
         case 'Email':
           return { ...base, type:'text', inputType:'email' };
         case 'Short text':
           return { ...base, type:'text' };
+        case 'Long text':
+          return { ...base, type:'comment' };
         case 'Multiple choice':
+          return { ...base, type:'checkbox', choices:['Opção 1', 'Opção 2', 'Opção 3'] };
         case 'Escolha única':
           return { ...base, type:'radiogroup', choices:['Opção 1', 'Opção 2', 'Opção 3'] };
         default:
@@ -919,8 +971,11 @@ const STATUS = {
 
     function surveyElementTypeToLegacy(element){
       if(element.type === 'comment') return 'Long text';
-      if(element.type === 'radiogroup' || element.type === 'checkbox') return 'Multiple choice';
+      if(element.type === 'radiogroup') return 'Escolha única';
+      if(element.type === 'checkbox') return 'Multiple choice';
       if(element.type === 'text' && element.inputType === 'email') return 'Email';
+      if(element.type === 'text' && element.inputType === 'date') return 'Date/time';
+      if(element.type === 'text' && element.inputType === 'tel') return 'Phone';
       if(element.type === 'text') return 'Short text';
       return element.type || 'Long text';
     }
@@ -945,22 +1000,27 @@ const STATUS = {
       renderAll();
     }
 
-    function createBriefingTemplate(){
-      const name = window.prompt('Nome do novo briefing:', 'Briefing — Novo modelo');
-      if(!name) return;
+    function createBriefingTemplate(defaultName){
+      const baseName = defaultName || 'Briefing — Novo modelo';
+      const rawName = defaultName || window.prompt('Nome do novo briefing:', baseName);
+      const name = rawName?.trim();
+      if(!name) return null;
       const id = `BRF-${String(nextTemplateId++).padStart(2,'0')}`;
-      briefingTemplates.unshift({
+      const template = {
         id,
-        name: name.trim(),
+        name,
         channel: 'Link público',
         updatedAt: today(),
         questions:[
-          { id:'Q-1', type:'Long text', label:'Qual é o contexto geral do projeto?' }
+          { id:'Q-1', type:'Short text', label:'Qual é o objetivo principal deste projeto?' },
+          { id:'Q-2', type:'Long text', label:'Descreva o contexto e os desafios atuais.' }
         ]
-      });
+      };
+      briefingTemplates.unshift(template);
       selectedBriefingTemplateId = id;
       renderMain();
       addToast('Novo briefing criado.');
+      return template;
     }
 
     function duplicateBriefingTemplate(templateId){

@@ -566,7 +566,43 @@
 
 
 
-    .briefingSectionHead{
+    
+#briefingTopAction{
+  display:none;
+  margin-left:auto;
+}
+
+.briefingChoiceModal{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.briefingChoiceGrid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:12px;
+}
+.briefingChoiceCard{
+  border:1px solid rgba(205,163,255,.35);
+  border-radius:16px;
+  background: rgba(143,100,255,.12);
+  color:var(--text);
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+  text-align:left;
+  cursor:pointer;
+}
+.briefingChoiceCard:hover{
+  border-color: rgba(205,163,255,.8);
+  transform: translateY(-1px);
+}
+.briefingChoiceCard strong{ font-size:13px; }
+.briefingChoiceCard small{ font-size:11px; color:var(--muted2); }
+
+.briefingSectionHead{
       display:flex;
       align-items:flex-start;
       justify-content:space-between;
@@ -734,6 +770,7 @@
       .panel.left, .content{ height:auto; }
       .modalBody{ grid-template-columns: 1fr; }
       .briefingBuilderModal{ grid-template-columns: 1fr; }
+      .briefingChoiceGrid{ grid-template-columns: 1fr; }
       .briefingBuilderStage.previewOnly,
       .briefingPreviewPane.fullView{ grid-column:auto; }
       .searchWrap{ max-width:none; }
