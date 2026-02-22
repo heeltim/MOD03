@@ -219,6 +219,12 @@ const STATUS = {
 
       el('btnCloseBriefingOverlay')?.addEventListener('click', closeBriefingOverlay);
       el('btnSaveBriefingOverlay')?.addEventListener('click', ()=>{
+        if(activeSurveyCreator && typeof activeSurveyCreator.JSON === 'object'){
+          const template = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId);
+          if(template){
+            applySurveySchemaToTemplate(template, activeSurveyCreator.JSON);
+          }
+        }
         addToast('Formulário salvo com sucesso. Link compartilhável atualizado.');
       });
       el('briefingOverlayBackdrop')?.addEventListener('click', (e)=>{
@@ -958,8 +964,34 @@ const STATUS = {
     }
 
     function initializeSurveyJsBuilder(container, template, previewOnly){
+      const hasCreator = typeof window.SurveyCreator !== 'undefined' || typeof window.SurveyCreatorCore !== 'undefined';
+      const hasSurveyJs = hasCreator && typeof window.Survey !== 'undefined';
+      const creatorHost = container.querySelector('#surveyCreatorHost');
       const previewHost = container.querySelector('#surveyPreviewHost');
+      const schema = template.surveyJson || templateQuestionsToSurveySchema(template);
       activeSurveyCreator = null;
+
+      if(!previewOnly && hasSurveyJs && creatorHost){
+        const creatorOptions = {
+          showLogicTab: true,
+          isAutoSave: false,
+          showTranslationTab: false
+        };
+        const CreatorClass = window.SurveyCreator?.SurveyCreator;
+        const CreatorModelClass = window.SurveyCreatorCore?.SurveyCreatorModel;
+        if(CreatorClass || CreatorModelClass){
+          const creator = CreatorClass
+            ? new CreatorClass(creatorHost, creatorOptions)
+            : new CreatorModelClass(creatorOptions);
+          if(!CreatorClass && typeof creator.render === 'function') creator.render(creatorHost);
+          creator.JSON = schema;
+          creator.onModified?.add?.(()=>{
+            applySurveySchemaToTemplate(template, creator.JSON);
+          });
+          activeSurveyCreator = creator;
+          return;
+        }
+      }
 
       if(!previewOnly) return;
 
