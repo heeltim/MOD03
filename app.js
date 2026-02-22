@@ -845,7 +845,19 @@ function renderBriefingSetupView(){
         container.querySelector('[data-action="toggle-preview"]')?.addEventListener('click', (ev)=>{
           openBriefingBuilderModal(template.id, ev.currentTarget.dataset.mode);
         });
-        container.querySelector('[data-action="copy-link"]')?.addEventListener('click', ()=> addToast('Link do briefing copiado (mock).'));
+        container.querySelector('[data-action="copy-link"]')?.addEventListener('click', async ()=>{
+          const link = `https://gruta.studio/briefing/${template.id.toLowerCase()}`;
+          try{
+            if(navigator.clipboard?.writeText){
+              await navigator.clipboard.writeText(link);
+              addToast('Link do briefing copiado para a área de transferência.');
+            } else {
+              throw new Error('Clipboard indisponível');
+            }
+          } catch(err){
+            window.prompt('Copie o link do briefing:', link);
+          }
+        });
         initializeNativeBriefingBuilder(container, template, previewOnly);
       });
     }
@@ -874,12 +886,19 @@ function renderBriefingSetupView(){
         { type:'Multiple choice', icon:'☑️', desc:'Múltiplas opções.' }
       ];
 
-      const selected = { index: Math.max(0, template.questions.length - 1) };
+      const selected = { index: Math.max(0, template.questions.length - 1), page:0 };
 
       const render = ()=>{
         host.innerHTML = '';
         if(previewOnly){
-          host.innerHTML = `<div class="briefingPreviewPane fullView">${renderPreviewMarkup(template)}</div>`;
+          host.innerHTML = `<div class="briefingPreviewPane fullView">${renderPreviewMarkup(template, selected.page)}</div>`;
+          const pages = chunkTemplateQuestions(template);
+          const nav = document.createElement('div');
+          nav.className = 'builderPageNav';
+          nav.innerHTML = `<button class="btn small" data-page-nav="prev">Voltar</button><span class="meta">Página ${selected.page + 1} de ${pages.length}</span><button class="btn small" data-page-nav="next">Seguinte</button>`;
+          host.appendChild(nav);
+          host.querySelector('[data-page-nav="prev"]')?.addEventListener('click', ()=>{ selected.page = Math.max(0, selected.page - 1); render(); });
+          host.querySelector('[data-page-nav="next"]')?.addEventListener('click', ()=>{ selected.page = Math.min(pages.length - 1, selected.page + 1); render(); });
           return;
         }
 
@@ -902,6 +921,10 @@ function renderBriefingSetupView(){
                 <article class="briefingQuestionCard ${idx===selected.index ? 'selected' : ''}" draggable="true" data-index="${idx}">
                   <div class="briefingQuestionHead">
                     <strong>${idx + 1}. ${escapeHtml(question.label)}</strong>
+                    <div class="questionInlineControls">
+                      <input class="input" data-inline-label="${idx}" value="${escapeHtml(question.label)}" />
+                      <label class="questionToggle"><input type="checkbox" data-inline-required="${idx}" ${question.required ? 'checked' : ''} />Obrigatória</label>
+                    </div>
                     <span class="pill">${escapeHtml(question.type)}</span>
                   </div>
                   ${question.subtitle ? `<small>${escapeHtml(question.subtitle)}</small>` : ''}
@@ -945,6 +968,28 @@ function renderBriefingSetupView(){
               selected.index = to;
               render();
             }
+          });
+        });
+
+        const pages = chunkTemplateQuestions(template);
+        const pageHeader = document.createElement('div');
+        pageHeader.className = 'builderPageHeader';
+        pageHeader.innerHTML = `<div class="meta">Páginas do formulário</div><div class="builderPageNav">${pages.map((_,i)=>`<button class="builderPageChip ${i===selected.page?'active':''}" data-page="${i}">Página ${i+1}</button>`).join('')}<button class="btn small" data-action="open-public">Abrir briefing público</button></div>`;
+        host.prepend(pageHeader);
+        host.querySelectorAll('[data-page]').forEach(btn=>btn.addEventListener('click', ()=>{selected.page = Number(btn.dataset.page||0); render();}));
+        host.querySelector('[data-action="open-public"]')?.addEventListener('click', ()=> openPublicBriefingWindow(template));
+
+        host.querySelectorAll('[data-inline-label]').forEach(input=>{
+          input.addEventListener('change', ()=>{
+            const i = Number(input.dataset.inlineLabel || 0);
+            if(template.questions[i]) template.questions[i].label = input.value.trim() || template.questions[i].label;
+          });
+        });
+        host.querySelectorAll('[data-inline-required]').forEach(chk=>{
+          chk.addEventListener('change', ()=>{
+            const i = Number(chk.dataset.inlineRequired || 0);
+            if(template.questions[i]) template.questions[i].required = Boolean(chk.checked);
+            render();
           });
         });
 
@@ -1002,19 +1047,92 @@ function renderBriefingSetupView(){
       `;
     }
 
-    function renderPreviewMarkup(template){
+    function chunkTemplateQuestions(template, pageSize = 4){
+      const chunks = [];
+      for(let i=0; i<template.questions.length; i += pageSize){
+        chunks.push(template.questions.slice(i, i + pageSize));
+      }
+      return chunks.length ? chunks : [[]];
+    }
+
+    function renderPreviewMarkup(template, pageIndex = 0){
+      const pages = chunkTemplateQuestions(template);
+      const safePage = Math.max(0, Math.min(pageIndex, pages.length - 1));
+      const startOffset = safePage * 4;
       return `
-        <h4>Prévia do formulário</h4>
+        <h4>Prévia do formulário • Página ${safePage + 1} de ${pages.length}</h4>
         <div class="briefingPreviewPhone">
-          ${template.questions.map((question, idx)=>`
+          ${pages[safePage].map((question, idx)=>`
             <div class="briefingPreviewQuestion">
-              <label>${idx + 1}. ${escapeHtml(question.label)}${question.required ? ' *' : ''}</label>
+              <label>${startOffset + idx + 1}. ${escapeHtml(question.label)}${question.required ? ' *' : ''}</label>
               ${question.subtitle ? `<div class="meta">${escapeHtml(question.subtitle)}</div>` : ''}
               <input class="briefingPreviewInput" placeholder="${escapeHtml(question.type)}" ${question.required ? 'required' : ''} />
             </div>
-          `).join('')}
+          `).join('') || '<div class="meta">Sem perguntas nesta página.</div>'}
         </div>
       `;
+    }
+
+    function openPublicBriefingWindow(template){
+      const win = window.open('', '_blank', 'noopener,noreferrer');
+      if(!win){
+        addToast('Não foi possível abrir nova janela. Verifique se o bloqueador de pop-up está ativo.');
+        return;
+      }
+      const pages = chunkTemplateQuestions(template);
+      const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Briefing — ${escapeHtml(template.name)}</title>
+<style>
+  body{margin:0;background:#070a12;color:#f5f6ff;font-family:Inter,system-ui,sans-serif;}
+  .publicBriefingShell{max-width:900px;margin:0 auto;padding:24px 16px 48px;}
+  .publicBriefingCard{background:#10131f;border:1px solid #2b3042;border-radius:16px;padding:16px;}
+  .publicBriefingTitle{margin:0 0 6px;color:#f5f6ff;}
+  .publicBriefingHint{margin:0 0 16px;color:#bbc3df;font-size:13px;}
+  .briefingPreviewQuestion{margin-bottom:12px;}
+  .briefingPreviewQuestion label{display:block;font-size:12px;margin-bottom:4px;color:#cad0e6;}
+  .briefingPreviewInput{width:100%;box-sizing:border-box;border:1px solid #2b3042;border-radius:10px;padding:10px;background:#080b16;color:#f5f6ff;}
+  .publicBriefingActions{margin-top:14px;display:flex;gap:8px;justify-content:space-between;}
+  button{border:1px solid #2b3042;background:#171d30;color:#f5f6ff;border-radius:10px;padding:8px 12px;cursor:pointer;}
+</style>
+</head>
+<body>
+  <main class="publicBriefingShell">
+    <article class="publicBriefingCard">
+      <h1 class="publicBriefingTitle">${escapeHtml(template.name)}</h1>
+      <p class="publicBriefingHint">Visualização pública do briefing • apenas perguntas para o cliente.</p>
+      <div id="publicFormHost"></div>
+      <div class="publicBriefingActions">
+        <button id="btnPrev">Voltar</button>
+        <span id="pageMeta"></span>
+        <button id="btnNext">Seguinte</button>
+      </div>
+    </article>
+  </main>
+<script>
+const pages = ${JSON.stringify(pages)};
+let page = 0;
+const host = document.getElementById('publicFormHost');
+const meta = document.getElementById('pageMeta');
+function render(){
+  const qs = pages[page] || [];
+  host.innerHTML = qs.map(function(q,i){ return '<div class="briefingPreviewQuestion"><label>'+(page*4+i+1)+'. '+q.label+(q.required?' *':'')+'</label><input class="briefingPreviewInput" placeholder="'+q.type+'" '+(q.required?'required':'')+'></div>'; }).join('') || '<p>Sem perguntas nesta página.</p>';
+  meta.textContent = 'Página ' + (page + 1) + ' de ' + pages.length;
+  document.getElementById('btnPrev').disabled = page===0;
+  document.getElementById('btnNext').disabled = page===pages.length-1;
+}
+document.getElementById('btnPrev').onclick=()=>{ if(page>0){page--; render();} };
+document.getElementById('btnNext').onclick=()=>{ if(page<pages.length-1){page++; render();} };
+render();
+</script>
+</body>
+</html>`;
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
     }
 
     function addQuestionFromType(templateId, type, keepBuilderOpen = false, viewMode = 'edit'){
