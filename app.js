@@ -1073,7 +1073,7 @@ const STATUS = {
           <button class="btn small" id="btnOpenBudgetTemplate">Abrir modelo GRUTA (2024)</button>
           <span class="pill" title="Exportação via impressão do navegador">Exportar via Print</span>
         </div>
-        
+
         <p>O orçamento nasce do briefing respondido (importa dados institucionais) ou é criado do zero. O porte é interno.</p>
         <div class="files" style="margin-top:10px">
           ${projects
@@ -1393,7 +1393,7 @@ const STATUS = {
         .replaceAll('"','&quot;')
         .replaceAll("'",'&#039;');
     }
-  
+
     // ===== Budget template (based on uploaded "Orçamento GRUTA 2024" PDF) =====
     function getProjectForBudgetTemplate(){
       // Prefer selected project; fallback to first project with budget
@@ -1487,8 +1487,8 @@ const STATUS = {
               `).join('')}
             </div>
             <div class="mt-3 text-sm text-slate-600">
-              <span class="font-semibold">Total horas:</span> ${b.hours}h • 
-              <span class="font-semibold">Valor/h:</span> R$ ${moneyBRL(b.hourly)} • 
+              <span class="font-semibold">Total horas:</span> ${b.hours}h •
+              <span class="font-semibold">Valor/h:</span> R$ ${moneyBRL(b.hourly)} •
               <span class="font-semibold">Multiplicador (interno):</span> ${PORTE_TABLE[b.porte]?.label || b.porte} (${mult.toFixed(2)})
             </div>
           </div>
