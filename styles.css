@@ -785,19 +785,26 @@
     }
     #printHost{ display:none; }
 
-/* SurveyJS integration */
+
+.briefingQuestionCard{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px;
+  background: rgba(255,255,255,.03);
+  cursor:grab;
+}
+.briefingQuestionCard.selected{
+  border-color: rgba(205,163,255,.5);
+  background: rgba(143,100,255,.16);
+}
+.briefingQuestionHead{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  align-items:flex-start;
+}
 .surveyBuilderShell{
   display:flex;
   flex-direction:column;
   gap:10px;
 }
-.surveyCreatorHost,
-.surveyPreviewHost{
-  min-height:540px;
-  border:1px solid var(--border);
-  border-radius:14px;
-  background: rgba(255,255,255,.03);
-  overflow:hidden;
-}
-.surveyCreatorHost.hidden,
-.surveyPreviewHost.hidden{ display:none; }
