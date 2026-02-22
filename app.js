@@ -832,7 +832,8 @@ const STATUS = {
     }
 
     function initializeSurveyJsBuilder(container, template, previewOnly){
-      const hasSurveyJs = typeof window.SurveyCreator !== 'undefined' && typeof window.Survey !== 'undefined';
+      const hasCreator = typeof window.SurveyCreator !== 'undefined' || typeof window.SurveyCreatorCore !== 'undefined';
+      const hasSurveyJs = hasCreator && typeof window.Survey !== 'undefined';
       const creatorHost = container.querySelector('#surveyCreatorHost');
       const previewHost = container.querySelector('#surveyPreviewHost');
       const schema = template.surveyJson || templateQuestionsToSurveySchema(template);
@@ -846,11 +847,19 @@ const STATUS = {
       activeSurveyCreator = null;
 
       if(!previewOnly && creatorHost){
-        const creator = new window.SurveyCreator.SurveyCreator(creatorHost, {
+        const creatorOptions = {
           showLogicTab: true,
           isAutoSave: false,
           showTranslationTab: false
-        });
+        };
+        const CreatorClass = window.SurveyCreator?.SurveyCreator;
+        const CreatorModelClass = window.SurveyCreatorCore?.SurveyCreatorModel;
+        const creator = CreatorClass
+          ? new CreatorClass(creatorHost, creatorOptions)
+          : new CreatorModelClass(creatorOptions);
+        if(!CreatorClass && typeof creator.render === 'function'){
+          creator.render(creatorHost);
+        }
         creator.JSON = schema;
         creator.onModified.add(()=>{
           applySurveySchemaToTemplate(template, creator.JSON);
