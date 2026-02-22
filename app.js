@@ -964,14 +964,12 @@ const STATUS = {
     }
 
     function initializeSurveyJsBuilder(container, template, previewOnly){
-      const hasCreator = typeof window.SurveyCreator !== 'undefined' || typeof window.SurveyCreatorCore !== 'undefined';
-      const hasSurveyJs = hasCreator && typeof window.Survey !== 'undefined';
       const creatorHost = container.querySelector('#surveyCreatorHost');
       const previewHost = container.querySelector('#surveyPreviewHost');
       const schema = template.surveyJson || templateQuestionsToSurveySchema(template);
       activeSurveyCreator = null;
 
-      if(!previewOnly && hasSurveyJs && creatorHost){
+      if(!previewOnly && creatorHost){
         const creatorOptions = {
           showLogicTab: true,
           isAutoSave: false,
@@ -985,15 +983,38 @@ const STATUS = {
             : new CreatorModelClass(creatorOptions);
           if(!CreatorClass && typeof creator.render === 'function') creator.render(creatorHost);
           creator.JSON = schema;
-          creator.onModified?.add?.(()=>{
-            applySurveySchemaToTemplate(template, creator.JSON);
-          });
+          if(creator.onModified && typeof creator.onModified.add === 'function'){
+            creator.onModified.add(()=>{
+              applySurveySchemaToTemplate(template, creator.JSON);
+            });
+          }
           activeSurveyCreator = creator;
           return;
         }
+
+        if(previewHost && typeof window.Survey !== 'undefined'){
+          previewHost.innerHTML = '';
+          const survey = new window.Survey.Model(schema);
+          survey.mode = 'edit';
+          survey.render(previewHost);
+          return;
+        }
+
+        if(creatorHost){
+          creatorHost.innerHTML = '<div class="card">Editor indisponível no momento. Verifique as bibliotecas do SurveyJS.</div>';
+        }
+        return;
       }
 
       if(!previewOnly) return;
+
+      if(previewHost && typeof window.Survey !== 'undefined'){
+        previewHost.innerHTML = '';
+        const survey = new window.Survey.Model(schema);
+        survey.mode = 'edit';
+        survey.render(previewHost);
+        return;
+      }
 
       if(previewHost){
         previewHost.innerHTML = `
