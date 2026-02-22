@@ -747,3 +747,20 @@
       #printHost * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
     #printHost{ display:none; }
+
+/* SurveyJS integration */
+.surveyBuilderShell{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.surveyCreatorHost,
+.surveyPreviewHost{
+  min-height:540px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background: rgba(255,255,255,.03);
+  overflow:hidden;
+}
+.surveyCreatorHost.hidden,
+.surveyPreviewHost.hidden{ display:none; }
