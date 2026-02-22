@@ -4,13 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gruta Núcleo Studio v1</title>
-  
+
 
   <!-- Tailwind (CDN) added for rapid UI prototyping; legacy CSS remains intact -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="./styles.css" />
-  <link rel="stylesheet" href="https://unpkg.com/survey-core/defaultV2.min.css" />
-  <link rel="stylesheet" href="https://unpkg.com/survey-creator-core/survey-creator-core.min.css" />
 </head>
 <body>
   <div class="dots" aria-hidden="true"></div>
@@ -81,13 +79,15 @@
           <button class="btn small" id="btnReset">Limpar</button>
         </div>
 
-        <div style="display:flex; gap:8px; align-items:center;" id="projectFilters">
-          <span class="chip active" data-filter="all">Todos</span>
-          <span class="chip" data-filter="pre">Pré-projeto</span>
-          <span class="chip" data-filter="brief">Briefing</span>
-          <span class="chip" data-filter="budget">Orçamento</span>
-          <span class="chip" data-filter="active">Ativo</span>
-        </div>
+      <div style="display:flex; gap:8px; align-items:center;" id="projectFilters">
+        <span class="chip active" data-filter="all">Todos</span>
+        <span class="chip" data-filter="pre">Pré-projeto</span>
+        <span class="chip" data-filter="brief">Briefing</span>
+        <span class="chip" data-filter="budget">Orçamento</span>
+        <span class="chip" data-filter="active">Ativo</span>
+      </div>
+
+      <div id="topbarActions" style="display:none; margin-left:auto;"></div>
       </div>
 
       <div class="panelBody" id="mainBody"></div>
@@ -169,7 +169,7 @@
     </div>
   </div>
 
-  
+
 
   <!-- MODAL: Briefing builder / templates -->
   <div class="modalBackdrop" id="briefingOverlayBackdrop" aria-hidden="true">
@@ -192,10 +192,6 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/survey-core/survey.core.min.js"></script>
-  <script src="https://unpkg.com/survey-js-ui/survey-js-ui.min.js"></script>
-  <script src="https://unpkg.com/survey-creator-core/survey-creator-core.min.js"></script>
-  <script src="https://unpkg.com/survey-creator-js/survey-creator-js.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

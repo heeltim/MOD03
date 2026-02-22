@@ -156,6 +156,7 @@ const STATUS = {
     let selectedBriefingTemplateId = briefingTemplates[0].id;
     let briefingBuilderContext = null;
     let activeSurveyCreator = null;
+    let briefingResponseFilter = 'answered';
 
     const el = (id)=>document.getElementById(id);
 
@@ -218,14 +219,6 @@ const STATUS = {
 
       el('btnCloseBriefingOverlay')?.addEventListener('click', closeBriefingOverlay);
       el('btnSaveBriefingOverlay')?.addEventListener('click', ()=>{
-        if(activeSurveyCreator && typeof activeSurveyCreator.JSON === 'object'){
-          const template = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId);
-          if(template){
-            applySurveySchemaToTemplate(template, activeSurveyCreator.JSON);
-            addToast('Formulário salvo com SurveyJS e link atualizado.');
-            return;
-          }
-        }
         addToast('Formulário salvo com sucesso. Link compartilhável atualizado.');
       });
       el('briefingOverlayBackdrop')?.addEventListener('click', (e)=>{
@@ -334,8 +327,19 @@ const STATUS = {
       const searchWrap = el('searchWrap');
       const filters = el('projectFilters');
       const showProjectTools = currentView === 'projects';
+      const topbarActions = el('topbarActions');
       if(searchWrap) searchWrap.style.display = showProjectTools ? 'flex' : 'none';
       if(filters) filters.style.display = showProjectTools ? 'flex' : 'none';
+      if(topbarActions){
+        if(currentView === 'briefings'){
+          topbarActions.style.display = 'flex';
+          topbarActions.innerHTML = '<button class="btn primary" id="btnTopCreateBriefing">+ Criar novo briefing</button>';
+          topbarActions.querySelector('#btnTopCreateBriefing')?.addEventListener('click', openNewBriefingStartModal);
+        } else {
+          topbarActions.style.display = 'none';
+          topbarActions.innerHTML = '';
+        }
+      }
     }
 
     function renderCounts(){
@@ -619,18 +623,36 @@ const STATUS = {
     function renderBriefingsView(){
       const wrap = document.createElement('div');
 
+      const filteredResponses = briefingResponses
+        .filter((response)=>{
+          if(briefingResponseFilter === 'pending') return response.status !== 'Completo';
+          if(briefingResponseFilter === 'answered') return response.status === 'Completo';
+          return true;
+        })
+        .sort((a,b)=>{
+          if(briefingResponseFilter === 'answered') return (b.respondedAt || '').localeCompare(a.respondedAt || '');
+          if(a.status === 'Completo' && b.status !== 'Completo') return -1;
+          if(a.status !== 'Completo' && b.status === 'Completo') return 1;
+          return (b.respondedAt || '').localeCompare(a.respondedAt || '');
+        });
+
       const responsesCard = document.createElement('div');
       responsesCard.className = 'card';
       responsesCard.innerHTML = `
         <div class="briefingSectionHead">
           <div>
             <h3>Respostas de Briefing</h3>
-            <p>Neste painel ficam visíveis apenas os projetos respondidos e as respostas recebidas.</p>
+            <p>Visualize em lista e filtre por pendentes ou respondidos. Por padrão, exibimos primeiro os respondidos.</p>
           </div>
-          <button class="btn small" data-action="open-models">Modelos de briefing</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <button class="chip ${briefingResponseFilter === 'answered' ? 'active' : ''}" data-action="filter-responses" data-filter="answered">Respondidos</button>
+            <button class="chip ${briefingResponseFilter === 'pending' ? 'active' : ''}" data-action="filter-responses" data-filter="pending">Pendentes</button>
+            <button class="chip ${briefingResponseFilter === 'all' ? 'active' : ''}" data-action="filter-responses" data-filter="all">Todos</button>
+            <button class="btn small" data-action="open-models">Modelos de briefing</button>
+          </div>
         </div>
-        <div class="briefingAnswers" style="margin-top:12px">
-          ${briefingResponses.map(response=>{
+        <div class="briefingAnswers briefingAnswersList" style="margin-top:12px">
+          ${filteredResponses.map(response=>{
             const template = briefingTemplates.find(t=>t.id===response.templateId);
             return `
               <article class="briefingAnswerCard">
@@ -646,23 +668,19 @@ const STATUS = {
                 </div>
               </article>
             `;
-          }).join('')}
+          }).join('') || '<div class="meta">Nenhuma resposta para o filtro selecionado.</div>'}
         </div>
       `;
 
-      const setupCard = document.createElement('div');
-      setupCard.className = 'card';
-      setupCard.innerHTML = `
-        <h3>Novo briefing</h3>
-        <p>Ao criar um novo briefing você entra em uma página de configuração para escolher como iniciar o processo.</p>
-        <button class="btn primary" data-action="start-new-briefing">+ Criar novo briefing</button>
-      `;
-
       wrap.appendChild(responsesCard);
-      wrap.appendChild(setupCard);
 
       wrap.querySelector('[data-action="open-models"]')?.addEventListener('click', openBriefingTemplatesModal);
-      wrap.querySelector('[data-action="start-new-briefing"]')?.addEventListener('click', ()=>openBriefingSetup('new'));
+      wrap.querySelectorAll('[data-action="filter-responses"]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          briefingResponseFilter = btn.dataset.filter;
+          renderMain();
+        });
+      });
       wrap.querySelectorAll('[data-action="edit-existing"]').forEach(btn=>{
         btn.addEventListener('click', ()=>openBriefingSetup('edit', btn.dataset.id));
       });
@@ -800,15 +818,55 @@ const STATUS = {
         <div class="surveyBuilderShell">
           <div class="briefingSectionHead">
             <div>
-              <h3>${previewOnly ? 'Pré-visualização do formulário' : 'SurveyJS Builder'}</h3>
-              <p>${previewOnly ? 'Confira como o cliente verá o formulário final.' : 'Edite o briefing com recursos completos de arrastar e soltar do SurveyJS.'}</p>
+              <h3>${previewOnly ? 'Pré-visualização do formulário' : 'QuillForms Builder (modo compatível)'}</h3>
+              <p>${previewOnly ? 'Confira como o cliente verá o formulário final.' : 'Editor em modo compatível com paleta lateral de campos e organização por lista.'}</p>
             </div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <span class="pill">${template.questions.length} perguntas</span>
               <button class="btn small ${previewOnly ? '' : 'primary'}" data-action="toggle-preview" data-mode="${previewOnly ? 'edit' : 'preview'}">${previewOnly ? 'Voltar para edição' : 'Pré-visualizar cliente'}</button>
             </div>
           </div>
-          <div id="surveyCreatorHost" class="surveyCreatorHost ${previewOnly ? 'hidden' : ''}"></div>
+          <div id="surveyCreatorHost" class="surveyCreatorHost ${previewOnly ? 'hidden' : ''}">
+            <div class="briefingBuilderModal">
+              <aside class="briefingFieldLibrary">
+                <h4>Campos</h4>
+                <div class="briefingFieldList">
+                  <button class="briefingFieldItem" data-action="quick-add" data-type="Short text"><span class="icon">✎</span><span><strong>Texto curto</strong><small>Nome, título, palavra-chave</small></span></button>
+                  <button class="briefingFieldItem" data-action="quick-add" data-type="Long text"><span class="icon">≡</span><span><strong>Texto longo</strong><small>Descrição completa</small></span></button>
+                  <button class="briefingFieldItem" data-action="quick-add" data-type="Email"><span class="icon">@</span><span><strong>Email</strong><small>Validação de contato</small></span></button>
+                  <button class="briefingFieldItem" data-action="quick-add" data-type="Multiple choice"><span class="icon">◉</span><span><strong>Escolha única</strong><small>Lista de opções</small></span></button>
+                </div>
+              </aside>
+              <section class="briefingPreviewPane">
+                <h4>Perguntas do formulário</h4>
+                <div class="files">
+                  ${(template.questions || []).map((question, idx)=>`
+                    <div class="file">
+                      <div>
+                        <div class="name">${idx + 1}. ${escapeHtml(question.label)}</div>
+                        <div class="meta">${escapeHtml(question.type)}</div>
+                      </div>
+                      <div style="display:flex; gap:6px;">
+                        <button class="btn small" data-action="move-question" data-dir="up" data-id="${question.id}">↑</button>
+                        <button class="btn small" data-action="move-question" data-dir="down" data-id="${question.id}">↓</button>
+                        <button class="btn small" data-action="delete-question" data-id="${question.id}">Excluir</button>
+                      </div>
+                    </div>
+                  `).join('') || '<div class="meta">Nenhuma pergunta. Use a biblioteca lateral para adicionar.</div>'}
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 170px auto; gap:8px; margin-top:10px;">
+                  <input class="input" id="builderQuestionLabel" placeholder="Digite a pergunta" />
+                  <select class="select" id="builderQuestionType">
+                    <option>Short text</option>
+                    <option>Long text</option>
+                    <option>Email</option>
+                    <option>Multiple choice</option>
+                  </select>
+                  <button class="btn small" data-action="add-question">Adicionar</button>
+                </div>
+              </section>
+            </div>
+          </div>
           <div id="surveyPreviewHost" class="surveyPreviewHost ${previewOnly ? '' : 'hidden'}"></div>
           <div class="briefingShareLink">https://gruta.studio/briefing/${template.id.toLowerCase()}</div>
           <button class="btn small" data-action="copy-link">Copiar link</button>
@@ -817,9 +875,6 @@ const STATUS = {
 
       openBriefingOverlay(`Builder — ${template.name}`, html, (container)=>{
         container.querySelector('[data-action="toggle-preview"]')?.addEventListener('click', (ev)=>{
-          if(activeSurveyCreator && typeof activeSurveyCreator.JSON === 'object'){
-            applySurveySchemaToTemplate(template, activeSurveyCreator.JSON);
-          }
           openBriefingBuilderModal(template.id, ev.currentTarget.dataset.mode);
         });
 
@@ -828,41 +883,103 @@ const STATUS = {
         });
 
         initializeSurveyJsBuilder(container, template, previewOnly);
+
+        container.querySelectorAll('[data-action="quick-add"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            const type = btn.dataset.type || 'Long text';
+            const defaults = {
+              'Short text':'Pergunta curta',
+              'Long text':'Descreva com detalhes',
+              'Email':'Qual é seu melhor email?',
+              'Multiple choice':'Selecione uma opção'
+            };
+            addBriefingQuestion(template.id, defaults[type] || 'Nova pergunta', type, true, 'edit');
+          });
+        });
+        container.querySelector('[data-action="add-question"]')?.addEventListener('click', ()=>{
+          const label = container.querySelector('#builderQuestionLabel')?.value?.trim();
+          const type = container.querySelector('#builderQuestionType')?.value || 'Long text';
+          addBriefingQuestion(template.id, label, type, true, 'edit');
+        });
+        container.querySelectorAll('[data-action="delete-question"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>deleteBriefingQuestion(template.id, btn.dataset.id, true, 'edit'));
+        });
+        container.querySelectorAll('[data-action="move-question"]').forEach(btn=>{
+          btn.addEventListener('click', ()=>moveBriefingQuestion(template.id, btn.dataset.id, btn.dataset.dir, true, 'edit'));
+        });
+      });
+    }
+
+    function openNewBriefingStartModal(){
+      const html = `
+        <div class="card" style="display:grid; gap:12px;">
+          <h3>Criar novo briefing</h3>
+          <p>Escolha como deseja iniciar o novo formulário.</p>
+          <div class="briefingGrid">
+            <article class="briefingCard">
+              <h4>Do zero</h4>
+              <p class="meta">Cria um briefing vazio para montar no builder.</p>
+              <button class="btn primary" data-action="start-from-scratch">Criar do zero</button>
+            </article>
+            <article class="briefingCard">
+              <h4>Usar modelo pré-definido</h4>
+              <p class="meta">Escolha um template existente e inicie a partir dele.</p>
+              <select class="select" id="briefingBaseTemplate">
+                ${briefingTemplates.map(template=>`<option value="${template.id}">${escapeHtml(template.name)}</option>`).join('')}
+              </select>
+              <button class="btn" data-action="start-from-template" style="margin-top:8px;">Criar com modelo</button>
+            </article>
+          </div>
+        </div>
+      `;
+
+      openBriefingOverlay('Criar novo briefing', html, (container)=>{
+        container.querySelector('[data-action="start-from-scratch"]')?.addEventListener('click', ()=>{
+          const id = `BRF-${String(nextTemplateId++).padStart(2,'0')}`;
+          briefingTemplates.unshift({
+            id,
+            name:`Briefing — Novo (${id})`,
+            channel:'Link público',
+            updatedAt: today(),
+            questions: []
+          });
+          selectedBriefingTemplateId = id;
+          openBriefingBuilderModal(id, 'edit');
+        });
+
+        container.querySelector('[data-action="start-from-template"]')?.addEventListener('click', ()=>{
+          const baseId = container.querySelector('#briefingBaseTemplate')?.value;
+          if(!baseId) return;
+          duplicateBriefingTemplate(baseId);
+          const created = briefingTemplates[0];
+          if(created?.id) openBriefingBuilderModal(created.id, 'edit');
+        });
       });
     }
 
     function initializeSurveyJsBuilder(container, template, previewOnly){
-      const hasSurveyJs = typeof window.SurveyCreator !== 'undefined' && typeof window.Survey !== 'undefined';
-      const creatorHost = container.querySelector('#surveyCreatorHost');
       const previewHost = container.querySelector('#surveyPreviewHost');
-      const schema = template.surveyJson || templateQuestionsToSurveySchema(template);
-
-      if(!hasSurveyJs){
-        if(creatorHost) creatorHost.innerHTML = '<div class="card">SurveyJS indisponível no momento. Verifique conexão com CDN.</div>';
-        if(previewHost) previewHost.innerHTML = '<div class="card">Não foi possível carregar a pré-visualização do formulário.</div>';
-        return;
-      }
-
       activeSurveyCreator = null;
 
-      if(!previewOnly && creatorHost){
-        const creator = new window.SurveyCreator.SurveyCreator(creatorHost, {
-          showLogicTab: true,
-          isAutoSave: false,
-          showTranslationTab: false
-        });
-        creator.JSON = schema;
-        creator.onModified.add(()=>{
-          applySurveySchemaToTemplate(template, creator.JSON);
-        });
-        activeSurveyCreator = creator;
-      }
+      if(!previewOnly) return;
 
       if(previewHost){
-        previewHost.innerHTML = '';
-        const survey = new window.Survey.Model(schema);
-        survey.mode = 'edit';
-        survey.render(previewHost);
+        previewHost.innerHTML = `
+          <div class="card">
+            <h3>${escapeHtml(template.name)}</h3>
+            <p>Pré-visualização do cliente (modo compatível)</p>
+            <div class="files" style="margin-top:10px;">
+              ${(template.questions || []).map((question, idx)=>`
+                <div class="file">
+                  <div>
+                    <div class="name">${idx + 1}. ${escapeHtml(question.label)}</div>
+                    <div class="meta">${escapeHtml(question.type)}</div>
+                  </div>
+                </div>
+              `).join('') || '<div class="meta">Nenhuma pergunta adicionada ainda.</div>'}
+            </div>
+          </div>
+        `;
       }
     }
 
@@ -1064,7 +1181,7 @@ const STATUS = {
           <button class="btn small" id="btnOpenBudgetTemplate">Abrir modelo GRUTA (2024)</button>
           <span class="pill" title="Exportação via impressão do navegador">Exportar via Print</span>
         </div>
-        
+
         <p>O orçamento nasce do briefing respondido (importa dados institucionais) ou é criado do zero. O porte é interno.</p>
         <div class="files" style="margin-top:10px">
           ${projects
@@ -1384,7 +1501,7 @@ const STATUS = {
         .replaceAll('"','&quot;')
         .replaceAll("'",'&#039;');
     }
-  
+
     // ===== Budget template (based on uploaded "Orçamento GRUTA 2024" PDF) =====
     function getProjectForBudgetTemplate(){
       // Prefer selected project; fallback to first project with budget
@@ -1478,8 +1595,8 @@ const STATUS = {
               `).join('')}
             </div>
             <div class="mt-3 text-sm text-slate-600">
-              <span class="font-semibold">Total horas:</span> ${b.hours}h • 
-              <span class="font-semibold">Valor/h:</span> R$ ${moneyBRL(b.hourly)} • 
+              <span class="font-semibold">Total horas:</span> ${b.hours}h •
+              <span class="font-semibold">Valor/h:</span> R$ ${moneyBRL(b.hourly)} •
               <span class="font-semibold">Multiplicador (interno):</span> ${PORTE_TABLE[b.porte]?.label || b.porte} (${mult.toFixed(2)})
             </div>
           </div>

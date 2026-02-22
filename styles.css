@@ -267,6 +267,7 @@
       overflow:hidden;
       text-overflow:ellipsis;
     }
+    #topbarActions{ display:flex; align-items:center; }
     .searchWrap{
       flex:1;
       max-width: 520px;
@@ -613,6 +614,11 @@
     .briefingAnswers{
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap:10px;
+    }
+    .briefingAnswers.briefingAnswersList{
+      display:flex;
+      flex-direction:column;
       gap:10px;
     }
     .briefingAnswerCard{
