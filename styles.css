@@ -656,10 +656,39 @@
     .briefingAnswerActions{ margin-top:10px; display:flex; justify-content:flex-end; }
     .briefingBuilderModal{
       display:grid;
-      grid-template-columns: 1.3fr .7fr;
+      grid-template-columns: 240px 1.05fr .75fr;
       gap:12px;
       min-height:0;
     }
+    .briefingFieldLibrary{
+      border:1px solid var(--border);
+      border-radius: 16px;
+      padding:12px;
+      background: rgba(255,255,255,.03);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .briefingFieldLibrary h4{ margin:0; font-size:13px; }
+    .briefingFieldList{ display:flex; flex-direction:column; gap:8px; }
+    .briefingFieldItem{
+      width:100%;
+      border:1px dashed rgba(255,255,255,.24);
+      background: rgba(11,14,16,.68);
+      border-radius: 12px;
+      padding:8px;
+      text-align:left;
+      color:var(--text);
+      display:flex;
+      align-items:flex-start;
+      gap:8px;
+      cursor:grab;
+    }
+    .briefingFieldItem .icon{ font-size:15px; line-height:1; margin-top:2px; }
+    .briefingFieldItem strong{ display:block; font-size:12px; }
+    .briefingFieldItem small{ display:block; font-size:11px; color:var(--muted2); margin-top:2px; }
+    .briefingDropZone.disabled{ opacity:.82; }
+    .briefingBuilderStage.previewOnly{ grid-column: 1 / span 1; }
     .briefingPreviewPane{
       border:1px solid var(--border);
       border-radius: 16px;
@@ -669,6 +698,7 @@
       flex-direction:column;
       gap:10px;
     }
+    .briefingPreviewPane.fullView{ grid-column: auto; }
     .briefingPreviewPane h4{ margin:0; font-size:13px; }
     .briefingPreviewPhone{
       border:1px dashed rgba(255,255,255,.2);
@@ -704,6 +734,8 @@
       .panel.left, .content{ height:auto; }
       .modalBody{ grid-template-columns: 1fr; }
       .briefingBuilderModal{ grid-template-columns: 1fr; }
+      .briefingBuilderStage.previewOnly,
+      .briefingPreviewPane.fullView{ grid-column:auto; }
       .searchWrap{ max-width:none; }
     }
   

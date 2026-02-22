@@ -155,6 +155,15 @@ const STATUS = {
     ];
     let selectedBriefingTemplateId = briefingTemplates[0].id;
     let briefingBuilderContext = null;
+    const BRIEFING_FIELD_LIBRARY = [
+      { key:'email', icon:'✉️', type:'Email', label:'Qual é o seu e-mail principal?', preview:'nome@empresa.com' },
+      { key:'phone', icon:'📞', type:'Telefone (BR)', label:'Qual telefone para contato?', preview:'(11) 99999-9999' },
+      { key:'single', icon:'🔘', type:'Escolha única', label:'Selecione uma opção', preview:'Opção A · Opção B · Opção C' },
+      { key:'multi', icon:'☑️', type:'Múltipla escolha', label:'Marque as opções que se aplicam', preview:'[ ] Opção A  [ ] Opção B  [ ] Opção C' },
+      { key:'address', icon:'📍', type:'Endereço (BR)', label:'Qual é o endereço completo?', preview:'Rua, número, bairro, cidade/UF, CEP' },
+      { key:'short', icon:'📝', type:'Short text', label:'Resposta curta', preview:'Texto curto' },
+      { key:'long', icon:'📄', type:'Long text', label:'Conte mais detalhes', preview:'Resposta longa do cliente' },
+    ];
 
     const el = (id)=>document.getElementById(id);
 
@@ -779,29 +788,51 @@ const STATUS = {
       });
     }
 
-    function openBriefingBuilderModal(templateId){
+    function openBriefingBuilderModal(templateId, viewMode = 'edit'){
       const template = briefingTemplates.find(t=>t.id===templateId);
       if(!template) return;
       selectedBriefingTemplateId = template.id;
 
+      const previewOnly = viewMode === 'preview';
+
       const html = `
         <div class="briefingBuilderModal">
-          <div class="briefingBuilderStage">
+          ${previewOnly ? '' : `
+          <aside class="briefingFieldLibrary">
+            <h4>Blocos de perguntas</h4>
+            <p class="meta">Arraste um bloco para a área de perguntas.</p>
+            <div class="briefingFieldList">
+              ${BRIEFING_FIELD_LIBRARY.map(field=>`
+                <button class="briefingFieldItem" draggable="true" data-action="drag-field" data-field="${field.key}">
+                  <span class="icon" aria-hidden="true">${field.icon}</span>
+                  <span>
+                    <strong>${field.type}</strong>
+                    <small>${field.label}</small>
+                  </span>
+                </button>
+              `).join('')}
+            </div>
+          </aside>
+          `}
+          <div class="briefingBuilderStage ${previewOnly ? 'previewOnly' : ''}">
             <div class="briefingSectionHead">
               <div>
                 <h3>Builder: ${escapeHtml(template.name)}</h3>
-                <p>Modo visual com organização de perguntas no estilo arrastar/reordenar e prévia em tempo real.</p>
+                <p>${previewOnly ? 'Visualização única do que será compartilhado com o cliente.' : 'Organize perguntas editáveis e use o botão de pré-visualização para ver o conteúdo final.'}</p>
               </div>
-              <span class="pill">${template.questions.length} perguntas</span>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span class="pill">${template.questions.length} perguntas</span>
+                <button class="btn small ${previewOnly ? '' : 'primary'}" data-action="toggle-preview" data-mode="${previewOnly ? 'edit' : 'preview'}">${previewOnly ? 'Voltar para edição' : 'Pré-visualizar cliente'}</button>
+              </div>
             </div>
-            <div class="files" style="margin-top:10px">
+            <div class="files briefingDropZone ${previewOnly ? 'disabled' : ''}" style="margin-top:10px" data-action="questions-dropzone">
               ${template.questions.map((question, idx)=>`
-                <div class="file">
+                <div class="file" draggable="${previewOnly ? 'false' : 'true'}" data-action="drag-question" data-qindex="${idx}">
                   <div style="min-width:0">
                     <div class="name">${idx+1}. ${escapeHtml(question.label)}</div>
                     <div class="meta">${escapeHtml(question.type)}</div>
                   </div>
-                  <div style="display:flex; gap:6px;">
+                  <div style="display:flex; gap:6px; ${previewOnly ? 'display:none;' : ''}">
                     <button class="btn small" data-action="move-question" data-id="${template.id}" data-qid="${question.id}" data-dir="up">↑</button>
                     <button class="btn small" data-action="move-question" data-id="${template.id}" data-qid="${question.id}" data-dir="down">↓</button>
                     <button class="btn small danger" data-action="delete-question" data-id="${template.id}" data-qid="${question.id}">Excluir</button>
@@ -809,6 +840,7 @@ const STATUS = {
                 </div>
               `).join('')}
             </div>
+            ${previewOnly ? '' : `
             <div class="briefingBuilderRow">
               <input class="input" id="newQuestionLabel" placeholder="Nova pergunta" />
               <select class="select" id="newQuestionType">
@@ -819,8 +851,9 @@ const STATUS = {
               </select>
               <button class="btn primary" data-action="add-question" data-id="${template.id}">Adicionar pergunta</button>
             </div>
+            `}
           </div>
-          <aside class="briefingPreviewPane">
+          <aside class="briefingPreviewPane ${previewOnly ? 'fullView' : ''}">
             <h4>Pré-visualização (cliente)</h4>
             <p class="meta">Link compartilhável será atualizado a cada salvamento.</p>
             <div class="briefingPreviewPhone">
@@ -839,21 +872,65 @@ const STATUS = {
       `;
 
       openBriefingOverlay(`Builder — ${template.name}`, html, (container)=>{
+        container.querySelector('[data-action="toggle-preview"]')?.addEventListener('click', (ev)=>{
+          openBriefingBuilderModal(template.id, ev.currentTarget.dataset.mode);
+        });
         container.querySelectorAll('[data-action="move-question"]').forEach(btn=>{
-          btn.addEventListener('click', ()=>moveBriefingQuestion(btn.dataset.id, btn.dataset.qid, btn.dataset.dir, true));
+          btn.addEventListener('click', ()=>moveBriefingQuestion(btn.dataset.id, btn.dataset.qid, btn.dataset.dir, true, viewMode));
         });
         container.querySelectorAll('[data-action="delete-question"]').forEach(btn=>{
-          btn.addEventListener('click', ()=>deleteBriefingQuestion(btn.dataset.id, btn.dataset.qid, true));
+          btn.addEventListener('click', ()=>deleteBriefingQuestion(btn.dataset.id, btn.dataset.qid, true, viewMode));
         });
         container.querySelector('[data-action="add-question"]')?.addEventListener('click', ()=>{
           const label = (container.querySelector('#newQuestionLabel')?.value || '').trim();
           const type = container.querySelector('#newQuestionType')?.value || 'Long text';
-          addBriefingQuestion(template.id, label, type, true);
+          addBriefingQuestion(template.id, label, type, true, viewMode);
         });
+        bindBriefingDnD(container, template.id, viewMode);
         container.querySelector('[data-action="copy-link"]')?.addEventListener('click', ()=>{
           addToast('Link do briefing copiado (mock).');
         });
       });
+    }
+
+    function bindBriefingDnD(container, templateId, viewMode){
+      if(viewMode !== 'edit') return;
+      let draggingQuestionIndex = null;
+      container.querySelectorAll('[data-action="drag-field"]').forEach(item=>{
+        item.addEventListener('dragstart', (e)=>{
+          e.dataTransfer.setData('text/plain', JSON.stringify({ source:'library', field:item.dataset.field }));
+        });
+      });
+      container.querySelectorAll('[data-action="drag-question"]').forEach(item=>{
+        item.addEventListener('dragstart', (e)=>{
+          draggingQuestionIndex = Number(item.dataset.qindex);
+          e.dataTransfer.setData('text/plain', JSON.stringify({ source:'question', index:draggingQuestionIndex }));
+        });
+      });
+      const zone = container.querySelector('[data-action="questions-dropzone"]');
+      if(!zone) return;
+      zone.addEventListener('dragover', (e)=>e.preventDefault());
+      zone.addEventListener('drop', (e)=>{
+        e.preventDefault();
+        const raw = e.dataTransfer.getData('text/plain');
+        if(!raw) return;
+        const data = JSON.parse(raw);
+        if(data.source === 'library'){
+          addBriefingQuestionFromLibrary(templateId, data.field, true, viewMode);
+          return;
+        }
+        const target = e.target.closest('[data-action="drag-question"]');
+        if(data.source === 'question' && target){
+          const toIndex = Number(target.dataset.qindex);
+          reorderBriefingQuestion(templateId, data.index, toIndex, true, viewMode);
+        }
+      });
+    }
+
+    function addBriefingQuestionFromLibrary(templateId, fieldKey, keepBuilderOpen = false, viewMode = 'edit'){
+      const field = BRIEFING_FIELD_LIBRARY.find(item=>item.key===fieldKey);
+      if(!field) return;
+      addBriefingQuestion(templateId, field.label, field.type, keepBuilderOpen, viewMode);
     }
 
     function openBriefingOverlay(title, contentHtml, onReady){
@@ -921,7 +998,7 @@ const STATUS = {
       addToast('Briefing renomeado.');
     }
 
-    function addBriefingQuestion(templateId, label, type, keepBuilderOpen = false){
+    function addBriefingQuestion(templateId, label, type, keepBuilderOpen = false, viewMode = 'edit'){
       if(!label){
         addToast('Escreva a pergunta antes de adicionar.');
         return;
@@ -935,28 +1012,28 @@ const STATUS = {
       });
       template.updatedAt = today();
       if(keepBuilderOpen){
-        openBriefingBuilderModal(templateId);
+        openBriefingBuilderModal(templateId, viewMode);
         addToast('Pergunta adicionada e formulário salvo.');
         return;
       }
       renderMain();
     }
 
-    function deleteBriefingQuestion(templateId, questionId, keepBuilderOpen = false){
+    function deleteBriefingQuestion(templateId, questionId, keepBuilderOpen = false, viewMode = 'edit'){
       const template = briefingTemplates.find(t=>t.id===templateId);
       if(!template) return;
       template.questions = template.questions.filter(q=>q.id !== questionId);
       template.questions = template.questions.map((question, idx)=>({ ...question, id: `Q-${idx + 1}` }));
       template.updatedAt = today();
       if(keepBuilderOpen){
-        openBriefingBuilderModal(templateId);
+        openBriefingBuilderModal(templateId, viewMode);
         addToast('Alterações salvas no formulário.');
         return;
       }
       renderMain();
     }
 
-    function moveBriefingQuestion(templateId, questionId, dir, keepBuilderOpen = false){
+    function moveBriefingQuestion(templateId, questionId, dir, keepBuilderOpen = false, viewMode = 'edit'){
       const template = briefingTemplates.find(t=>t.id===templateId);
       if(!template) return;
       const idx = template.questions.findIndex(q=>q.id===questionId);
@@ -969,8 +1046,25 @@ const STATUS = {
       template.questions = template.questions.map((question, index)=>({ ...question, id: `Q-${index + 1}` }));
       template.updatedAt = today();
       if(keepBuilderOpen){
-        openBriefingBuilderModal(templateId);
+        openBriefingBuilderModal(templateId, viewMode);
         addToast('Ordem das perguntas atualizada.');
+        return;
+      }
+      renderMain();
+    }
+
+    function reorderBriefingQuestion(templateId, fromIndex, toIndex, keepBuilderOpen = false, viewMode = 'edit'){
+      const template = briefingTemplates.find(t=>t.id===templateId);
+      if(!template) return;
+      if(fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+      const [item] = template.questions.splice(fromIndex, 1);
+      if(!item) return;
+      template.questions.splice(toIndex, 0, item);
+      template.questions = template.questions.map((question, index)=>({ ...question, id: `Q-${index + 1}` }));
+      template.updatedAt = today();
+      if(keepBuilderOpen){
+        openBriefingBuilderModal(templateId, viewMode);
+        addToast('Perguntas reordenadas com arrastar e soltar.');
         return;
       }
       renderMain();
