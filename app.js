@@ -155,15 +155,7 @@ const STATUS = {
     ];
     let selectedBriefingTemplateId = briefingTemplates[0].id;
     let briefingBuilderContext = null;
-    const BRIEFING_FIELD_LIBRARY = [
-      { key:'email', icon:'✉️', type:'Email', label:'Qual é o seu e-mail principal?', preview:'nome@empresa.com' },
-      { key:'phone', icon:'📞', type:'Telefone (BR)', label:'Qual telefone para contato?', preview:'(11) 99999-9999' },
-      { key:'single', icon:'🔘', type:'Escolha única', label:'Selecione uma opção', preview:'Opção A · Opção B · Opção C' },
-      { key:'multi', icon:'☑️', type:'Múltipla escolha', label:'Marque as opções que se aplicam', preview:'[ ] Opção A  [ ] Opção B  [ ] Opção C' },
-      { key:'address', icon:'📍', type:'Endereço (BR)', label:'Qual é o endereço completo?', preview:'Rua, número, bairro, cidade/UF, CEP' },
-      { key:'short', icon:'📝', type:'Short text', label:'Resposta curta', preview:'Texto curto' },
-      { key:'long', icon:'📄', type:'Long text', label:'Conte mais detalhes', preview:'Resposta longa do cliente' },
-    ];
+    let activeSurveyCreator = null;
 
     const el = (id)=>document.getElementById(id);
 
@@ -225,7 +217,17 @@ const STATUS = {
       });
 
       el('btnCloseBriefingOverlay')?.addEventListener('click', closeBriefingOverlay);
-      el('btnSaveBriefingOverlay')?.addEventListener('click', ()=>addToast('Formulário salvo com sucesso. Link compartilhável atualizado.'));
+      el('btnSaveBriefingOverlay')?.addEventListener('click', ()=>{
+        if(activeSurveyCreator && typeof activeSurveyCreator.JSON === 'object'){
+          const template = briefingTemplates.find(t=>t.id===selectedBriefingTemplateId);
+          if(template){
+            applySurveySchemaToTemplate(template, activeSurveyCreator.JSON);
+            addToast('Formulário salvo com SurveyJS e link atualizado.');
+            return;
+          }
+        }
+        addToast('Formulário salvo com sucesso. Link compartilhável atualizado.');
+      });
       el('briefingOverlayBackdrop')?.addEventListener('click', (e)=>{
         if(e.target === el('briefingOverlayBackdrop')) closeBriefingOverlay();
       });
@@ -794,143 +796,124 @@ const STATUS = {
       selectedBriefingTemplateId = template.id;
 
       const previewOnly = viewMode === 'preview';
-
       const html = `
-        <div class="briefingBuilderModal">
-          ${previewOnly ? '' : `
-          <aside class="briefingFieldLibrary">
-            <h4>Blocos de perguntas</h4>
-            <p class="meta">Arraste um bloco para a área de perguntas.</p>
-            <div class="briefingFieldList">
-              ${BRIEFING_FIELD_LIBRARY.map(field=>`
-                <button class="briefingFieldItem" draggable="true" data-action="drag-field" data-field="${field.key}">
-                  <span class="icon" aria-hidden="true">${field.icon}</span>
-                  <span>
-                    <strong>${field.type}</strong>
-                    <small>${field.label}</small>
-                  </span>
-                </button>
-              `).join('')}
+        <div class="surveyBuilderShell">
+          <div class="briefingSectionHead">
+            <div>
+              <h3>${previewOnly ? 'Pré-visualização do formulário' : 'SurveyJS Builder'}</h3>
+              <p>${previewOnly ? 'Confira como o cliente verá o formulário final.' : 'Edite o briefing com recursos completos de arrastar e soltar do SurveyJS.'}</p>
             </div>
-          </aside>
-          `}
-          <div class="briefingBuilderStage ${previewOnly ? 'previewOnly' : ''}">
-            <div class="briefingSectionHead">
-              <div>
-                <h3>Builder: ${escapeHtml(template.name)}</h3>
-                <p>${previewOnly ? 'Visualização única do que será compartilhado com o cliente.' : 'Organize perguntas editáveis e use o botão de pré-visualização para ver o conteúdo final.'}</p>
-              </div>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <span class="pill">${template.questions.length} perguntas</span>
-                <button class="btn small ${previewOnly ? '' : 'primary'}" data-action="toggle-preview" data-mode="${previewOnly ? 'edit' : 'preview'}">${previewOnly ? 'Voltar para edição' : 'Pré-visualizar cliente'}</button>
-              </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span class="pill">${template.questions.length} perguntas</span>
+              <button class="btn small ${previewOnly ? '' : 'primary'}" data-action="toggle-preview" data-mode="${previewOnly ? 'edit' : 'preview'}">${previewOnly ? 'Voltar para edição' : 'Pré-visualizar cliente'}</button>
             </div>
-            <div class="files briefingDropZone ${previewOnly ? 'disabled' : ''}" style="margin-top:10px" data-action="questions-dropzone">
-              ${template.questions.map((question, idx)=>`
-                <div class="file" draggable="${previewOnly ? 'false' : 'true'}" data-action="drag-question" data-qindex="${idx}">
-                  <div style="min-width:0">
-                    <div class="name">${idx+1}. ${escapeHtml(question.label)}</div>
-                    <div class="meta">${escapeHtml(question.type)}</div>
-                  </div>
-                  <div style="display:flex; gap:6px; ${previewOnly ? 'display:none;' : ''}">
-                    <button class="btn small" data-action="move-question" data-id="${template.id}" data-qid="${question.id}" data-dir="up">↑</button>
-                    <button class="btn small" data-action="move-question" data-id="${template.id}" data-qid="${question.id}" data-dir="down">↓</button>
-                    <button class="btn small danger" data-action="delete-question" data-id="${template.id}" data-qid="${question.id}">Excluir</button>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-            ${previewOnly ? '' : `
-            <div class="briefingBuilderRow">
-              <input class="input" id="newQuestionLabel" placeholder="Nova pergunta" />
-              <select class="select" id="newQuestionType">
-                <option>Long text</option>
-                <option>Short text</option>
-                <option>Multiple choice</option>
-                <option>Email</option>
-              </select>
-              <button class="btn primary" data-action="add-question" data-id="${template.id}">Adicionar pergunta</button>
-            </div>
-            `}
           </div>
-          <aside class="briefingPreviewPane ${previewOnly ? 'fullView' : ''}">
-            <h4>Pré-visualização (cliente)</h4>
-            <p class="meta">Link compartilhável será atualizado a cada salvamento.</p>
-            <div class="briefingPreviewPhone">
-              <div class="briefingPreviewHeader">${escapeHtml(template.name)}</div>
-              ${template.questions.map((question, idx)=>`
-                <div class="briefingPreviewQuestion">
-                  <label>${idx+1}. ${escapeHtml(question.label)}</label>
-                  <div class="briefingPreviewInput">${escapeHtml(question.type)}</div>
-                </div>
-              `).join('')}
-            </div>
-            <div class="briefingShareLink">https://gruta.studio/briefing/${template.id.toLowerCase()}</div>
-            <button class="btn small" data-action="copy-link">Copiar link</button>
-          </aside>
+          <div id="surveyCreatorHost" class="surveyCreatorHost ${previewOnly ? 'hidden' : ''}"></div>
+          <div id="surveyPreviewHost" class="surveyPreviewHost ${previewOnly ? '' : 'hidden'}"></div>
+          <div class="briefingShareLink">https://gruta.studio/briefing/${template.id.toLowerCase()}</div>
+          <button class="btn small" data-action="copy-link">Copiar link</button>
         </div>
       `;
 
       openBriefingOverlay(`Builder — ${template.name}`, html, (container)=>{
         container.querySelector('[data-action="toggle-preview"]')?.addEventListener('click', (ev)=>{
+          if(activeSurveyCreator && typeof activeSurveyCreator.JSON === 'object'){
+            applySurveySchemaToTemplate(template, activeSurveyCreator.JSON);
+          }
           openBriefingBuilderModal(template.id, ev.currentTarget.dataset.mode);
         });
-        container.querySelectorAll('[data-action="move-question"]').forEach(btn=>{
-          btn.addEventListener('click', ()=>moveBriefingQuestion(btn.dataset.id, btn.dataset.qid, btn.dataset.dir, true, viewMode));
-        });
-        container.querySelectorAll('[data-action="delete-question"]').forEach(btn=>{
-          btn.addEventListener('click', ()=>deleteBriefingQuestion(btn.dataset.id, btn.dataset.qid, true, viewMode));
-        });
-        container.querySelector('[data-action="add-question"]')?.addEventListener('click', ()=>{
-          const label = (container.querySelector('#newQuestionLabel')?.value || '').trim();
-          const type = container.querySelector('#newQuestionType')?.value || 'Long text';
-          addBriefingQuestion(template.id, label, type, true, viewMode);
-        });
-        bindBriefingDnD(container, template.id, viewMode);
+
         container.querySelector('[data-action="copy-link"]')?.addEventListener('click', ()=>{
           addToast('Link do briefing copiado (mock).');
         });
+
+        initializeSurveyJsBuilder(container, template, previewOnly);
       });
     }
 
-    function bindBriefingDnD(container, templateId, viewMode){
-      if(viewMode !== 'edit') return;
-      let draggingQuestionIndex = null;
-      container.querySelectorAll('[data-action="drag-field"]').forEach(item=>{
-        item.addEventListener('dragstart', (e)=>{
-          e.dataTransfer.setData('text/plain', JSON.stringify({ source:'library', field:item.dataset.field }));
+    function initializeSurveyJsBuilder(container, template, previewOnly){
+      const hasSurveyJs = typeof window.SurveyCreator !== 'undefined' && typeof window.Survey !== 'undefined';
+      const creatorHost = container.querySelector('#surveyCreatorHost');
+      const previewHost = container.querySelector('#surveyPreviewHost');
+      const schema = template.surveyJson || templateQuestionsToSurveySchema(template);
+
+      if(!hasSurveyJs){
+        if(creatorHost) creatorHost.innerHTML = '<div class="card">SurveyJS indisponível no momento. Verifique conexão com CDN.</div>';
+        if(previewHost) previewHost.innerHTML = '<div class="card">Não foi possível carregar a pré-visualização do formulário.</div>';
+        return;
+      }
+
+      activeSurveyCreator = null;
+
+      if(!previewOnly && creatorHost){
+        const creator = new window.SurveyCreator.SurveyCreator(creatorHost, {
+          showLogicTab: true,
+          isAutoSave: false,
+          showTranslationTab: false
         });
-      });
-      container.querySelectorAll('[data-action="drag-question"]').forEach(item=>{
-        item.addEventListener('dragstart', (e)=>{
-          draggingQuestionIndex = Number(item.dataset.qindex);
-          e.dataTransfer.setData('text/plain', JSON.stringify({ source:'question', index:draggingQuestionIndex }));
+        creator.JSON = schema;
+        creator.onModified.add(()=>{
+          applySurveySchemaToTemplate(template, creator.JSON);
         });
-      });
-      const zone = container.querySelector('[data-action="questions-dropzone"]');
-      if(!zone) return;
-      zone.addEventListener('dragover', (e)=>e.preventDefault());
-      zone.addEventListener('drop', (e)=>{
-        e.preventDefault();
-        const raw = e.dataTransfer.getData('text/plain');
-        if(!raw) return;
-        const data = JSON.parse(raw);
-        if(data.source === 'library'){
-          addBriefingQuestionFromLibrary(templateId, data.field, true, viewMode);
-          return;
-        }
-        const target = e.target.closest('[data-action="drag-question"]');
-        if(data.source === 'question' && target){
-          const toIndex = Number(target.dataset.qindex);
-          reorderBriefingQuestion(templateId, data.index, toIndex, true, viewMode);
-        }
-      });
+        activeSurveyCreator = creator;
+      }
+
+      if(previewHost){
+        previewHost.innerHTML = '';
+        const survey = new window.Survey.Model(schema);
+        survey.mode = 'edit';
+        survey.render(previewHost);
+      }
     }
 
-    function addBriefingQuestionFromLibrary(templateId, fieldKey, keepBuilderOpen = false, viewMode = 'edit'){
-      const field = BRIEFING_FIELD_LIBRARY.find(item=>item.key===fieldKey);
-      if(!field) return;
-      addBriefingQuestion(templateId, field.label, field.type, keepBuilderOpen, viewMode);
+    function templateQuestionsToSurveySchema(template){
+      return {
+        title: template.name,
+        showQuestionNumbers: 'on',
+        pages: [{
+          name: 'pagina1',
+          elements: (template.questions || []).map((question, idx)=>questionToSurveyElement(question, idx))
+        }]
+      };
+    }
+
+    function questionToSurveyElement(question, index){
+      const key = `q_${index + 1}`;
+      const base = { name: key, title: question.label || `Pergunta ${index + 1}` };
+      switch(question.type){
+        case 'Email':
+          return { ...base, type:'text', inputType:'email' };
+        case 'Short text':
+          return { ...base, type:'text' };
+        case 'Multiple choice':
+        case 'Escolha única':
+          return { ...base, type:'radiogroup', choices:['Opção 1', 'Opção 2', 'Opção 3'] };
+        default:
+          return { ...base, type:'comment' };
+      }
+    }
+
+    function applySurveySchemaToTemplate(template, schema){
+      template.surveyJson = schema;
+      template.questions = surveySchemaToQuestions(schema);
+      template.updatedAt = today();
+    }
+
+    function surveySchemaToQuestions(schema){
+      const elements = (schema?.pages || []).flatMap(page=>page.elements || []);
+      return elements.map((element, idx)=>({
+        id: `Q-${idx + 1}`,
+        type: surveyElementTypeToLegacy(element),
+        label: element.title || element.name || `Pergunta ${idx + 1}`
+      }));
+    }
+
+    function surveyElementTypeToLegacy(element){
+      if(element.type === 'comment') return 'Long text';
+      if(element.type === 'radiogroup' || element.type === 'checkbox') return 'Multiple choice';
+      if(element.type === 'text' && element.inputType === 'email') return 'Email';
+      if(element.type === 'text') return 'Short text';
+      return element.type || 'Long text';
     }
 
     function openBriefingOverlay(title, contentHtml, onReady){
